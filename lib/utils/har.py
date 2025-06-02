@@ -7,6 +7,7 @@ See the file 'LICENSE' for copying permission
 
 import base64
 import datetime
+import functools
 import io
 import re
 import time
@@ -106,7 +107,7 @@ class Request(object):
                    comment=request.comment,
                    raw=raw)
 
-    @property
+    @functools.cached_property
     def url(self):
         host = self.headers.get("Host", "unknown")
         return "http://%s%s" % (host, self.path)

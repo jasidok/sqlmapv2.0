@@ -18,48 +18,49 @@ def checkDependencies():
             continue
 
         try:
-            if dbmsName in (DBMS.MSSQL, DBMS.SYBASE):
-                __import__("_mssql")
+            match dbmsName:
+                case DBMS.MSSQL | DBMS.SYBASE:
+                    __import__("_mssql")
 
-                pymssql = __import__("pymssql")
-                if not hasattr(pymssql, "__version__") or pymssql.__version__ < "1.0.2":
-                    warnMsg = "'%s' third-party library must be " % data[1]
-                    warnMsg += "version >= 1.0.2 to work properly. "
-                    warnMsg += "Download from '%s'" % data[2]
-                    logger.warning(warnMsg)
-            elif dbmsName == DBMS.MYSQL:
-                __import__("pymysql")
-            elif dbmsName in (DBMS.PGSQL, DBMS.CRATEDB):
-                __import__("psycopg2")
-            elif dbmsName == DBMS.ORACLE:
-                __import__("cx_Oracle")
-            elif dbmsName == DBMS.SQLITE:
-                __import__("sqlite3")
-            elif dbmsName == DBMS.ACCESS:
-                __import__("pyodbc")
-            elif dbmsName == DBMS.FIREBIRD:
-                __import__("kinterbasdb")
-            elif dbmsName == DBMS.DB2:
-                __import__("ibm_db_dbi")
-            elif dbmsName in (DBMS.HSQLDB, DBMS.CACHE):
-                __import__("jaydebeapi")
-                __import__("jpype")
-            elif dbmsName == DBMS.INFORMIX:
-                __import__("ibm_db_dbi")
-            elif dbmsName == DBMS.MONETDB:
-                __import__("pymonetdb")
-            elif dbmsName == DBMS.DERBY:
-                __import__("drda")
-            elif dbmsName == DBMS.VERTICA:
-                __import__("vertica_python")
-            elif dbmsName == DBMS.PRESTO:
-                __import__("prestodb")
-            elif dbmsName == DBMS.MIMERSQL:
-                __import__("mimerpy")
-            elif dbmsName == DBMS.CUBRID:
-                __import__("CUBRIDdb")
-            elif dbmsName == DBMS.CLICKHOUSE:
-                __import__("clickhouse_connect")
+                    pymssql = __import__("pymssql")
+                    if not hasattr(pymssql, "__version__") or pymssql.__version__ < "1.0.2":
+                        warnMsg = "'%s' third-party library must be " % data[1]
+                        warnMsg += "version >= 1.0.2 to work properly. "
+                        warnMsg += "Download from '%s'" % data[2]
+                        logger.warning(warnMsg)
+                case DBMS.MYSQL:
+                    __import__("pymysql")
+                case DBMS.PGSQL | DBMS.CRATEDB:
+                    __import__("psycopg2")
+                case DBMS.ORACLE:
+                    __import__("cx_Oracle")
+                case DBMS.SQLITE:
+                    __import__("sqlite3")
+                case DBMS.ACCESS:
+                    __import__("pyodbc")
+                case DBMS.FIREBIRD:
+                    __import__("kinterbasdb")
+                case DBMS.DB2:
+                    __import__("ibm_db_dbi")
+                case DBMS.HSQLDB | DBMS.CACHE:
+                    __import__("jaydebeapi")
+                    __import__("jpype")
+                case DBMS.INFORMIX:
+                    __import__("ibm_db_dbi")
+                case DBMS.MONETDB:
+                    __import__("pymonetdb")
+                case DBMS.DERBY:
+                    __import__("drda")
+                case DBMS.VERTICA:
+                    __import__("vertica_python")
+                case DBMS.PRESTO:
+                    __import__("prestodb")
+                case DBMS.MIMERSQL:
+                    __import__("mimerpy")
+                case DBMS.CUBRID:
+                    __import__("CUBRIDdb")
+                case DBMS.CLICKHOUSE:
+                    __import__("clickhouse_connect")
         except:
             warnMsg = "sqlmap requires '%s' third-party library " % data[1]
             warnMsg += "in order to directly connect to the DBMS "

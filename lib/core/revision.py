@@ -5,9 +5,9 @@ Copyright (c) 2006-2025 sqlmap developers (https://sqlmap.org)
 See the file 'LICENSE' for copying permission
 """
 
-import os
 import re
 import subprocess
+from pathlib import Path
 
 from lib.core.common import openFile
 from lib.core.convert import getText
@@ -22,28 +22,28 @@ def getRevisionNumber():
 
     retVal = None
     filePath = None
-    _ = os.path.dirname(__file__)
+    current_path = Path(__file__).parent
 
     while True:
-        filePath = os.path.join(_, ".git", "HEAD")
-        if os.path.exists(filePath):
+        filePath = current_path / ".git" / "HEAD"
+        if filePath.exists():
             break
         else:
             filePath = None
-            if _ == os.path.dirname(_):
+            if current_path == current_path.parent:
                 break
             else:
-                _ = os.path.dirname(_)
+                current_path = current_path.parent
 
     while True:
-        if filePath and os.path.isfile(filePath):
-            with openFile(filePath, "r") as f:
+        if filePath and filePath.is_file():
+            with openFile(str(filePath), "r") as f:
                 content = getText(f.read())
                 filePath = None
 
                 if content.startswith("ref: "):
                     try:
-                        filePath = os.path.join(_, ".git", content.replace("ref: ", "")).strip()
+                        filePath = current_path / ".git" / content.replace("ref: ", "").strip()
                     except UnicodeError:
                         pass
 

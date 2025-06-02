@@ -28,7 +28,7 @@ from lib.core.settings import GIT_PAGE
 from lib.core.settings import SITE
 from lib.core.settings import VERSION_STRING
 from lib.core.settings import WIKI_PAGE
-from thirdparty.six.moves import queue as _queue
+import queue as _queue
 
 alive = None
 line = ""
@@ -37,10 +37,10 @@ queue = None
 
 def runGui(parser):
     try:
-        from thirdparty.six.moves import tkinter as _tkinter
-        from thirdparty.six.moves import tkinter_scrolledtext as _tkinter_scrolledtext
-        from thirdparty.six.moves import tkinter_ttk as _tkinter_ttk
-        from thirdparty.six.moves import tkinter_messagebox as _tkinter_messagebox
+        import tkinter as _tkinter
+        import tkinter.scrolledtext as _tkinter_scrolledtext
+        import tkinter.ttk as _tkinter_ttk
+        import tkinter.messagebox as _tkinter_messagebox
     except ImportError as ex:
         raise SqlmapMissingDependence("missing dependence ('%s')" % getSafeExString(ex))
 
@@ -83,7 +83,10 @@ def runGui(parser):
 
     # Reference: https://www.holadevs.com/pregunta/64750/change-selected-tab-color-in-ttknotebook
     style = _tkinter_ttk.Style()
-    settings = {"TNotebook.Tab": {"configure": {"padding": [5, 1], "background": "#fdd57e"}, "map": {"background": [("selected", "#C70039"), ("active", "#fc9292")], "foreground": [("selected", "#ffffff"), ("active", "#000000")]}}}
+    settings = {"TNotebook.Tab": {"configure": {"padding": [5, 1], "background": "#fdd57e"},
+                                  "map": {"background": [("selected", "#C70039"), ("active", "#fc9292")],
+                                          "foreground": [("selected", "#ffffff"), ("active", "#000000")]}},
+                }
     style.theme_create("custom", parent="alt", settings=settings)
     style.theme_use("custom")
 
@@ -143,14 +146,16 @@ def runGui(parser):
 
             if hasattr(widget, "get") and not widget.get():
                 value = None
-            elif type == "string":
-                value = widget.get()
-            elif type == "float":
-                value = float(widget.get())
-            elif type == "int":
-                value = int(widget.get())
             else:
-                value = bool(widget.var.get())
+                match type:
+                    case "string":
+                        value = widget.get()
+                    case "float":
+                        value = float(widget.get())
+                    case "int":
+                        value = int(widget.get())
+                    case _:
+                        value = bool(widget.var.get())
 
             config[dest] = value
 
@@ -249,16 +254,17 @@ def runGui(parser):
         for option in group.option_list:
             _tkinter.Label(frame, text="%s " % parser.formatter._format_option_strings(option)).grid(column=0, row=row, sticky=_tkinter.W)
 
-            if option.type == "string":
-                widget = _tkinter.Entry(frame)
-            elif option.type == "float":
-                widget = ConstrainedEntry(frame, regex=r"\A\d*\.?\d*\Z")
-            elif option.type == "int":
-                widget = ConstrainedEntry(frame, regex=r"\A\d*\Z")
-            else:
-                var = _tkinter.IntVar()
-                widget = _tkinter.Checkbutton(frame, variable=var)
-                widget.var = var
+            match option.type:
+                case "string":
+                    widget = _tkinter.Entry(frame)
+                case "float":
+                    widget = ConstrainedEntry(frame, regex=r"\A\d*\.?\d*\Z")
+                case "int":
+                    widget = ConstrainedEntry(frame, regex=r"\A\d*\Z")
+                case _:
+                    var = _tkinter.IntVar()
+                    widget = _tkinter.Checkbutton(frame, variable=var)
+                    widget.var = var
 
             first = first or widget
             widget.grid(column=1, row=row, sticky=_tkinter.W)

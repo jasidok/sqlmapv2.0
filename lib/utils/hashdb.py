@@ -26,7 +26,6 @@ from lib.core.settings import HASHDB_FLUSH_THRESHOLD
 from lib.core.settings import HASHDB_RETRIEVE_RETRIES
 from lib.core.threads import getCurrentThreadData
 from lib.core.threads import getCurrentThreadName
-from thirdparty import six
 
 class HashDB(object):
     def __init__(self, filepath):
@@ -79,7 +78,7 @@ class HashDB(object):
 
     @staticmethod
     def hashKey(key):
-        key = getBytes(key if isinstance(key, six.text_type) else repr(key), errors="xmlcharrefreplace")
+        key = getBytes(key if isinstance(key, str) else repr(key), errors="xmlcharrefreplace")
         retVal = int(hashlib.md5(key).hexdigest(), 16) & 0x7fffffffffffffff  # Reference: http://stackoverflow.com/a/4448400
         return retVal
 

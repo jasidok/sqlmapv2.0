@@ -42,9 +42,7 @@ from lib.core.settings import INVALID_UNICODE_PRIVATE_AREA
 from lib.core.settings import INVALID_UNICODE_CHAR_FORMAT
 from lib.core.settings import IS_WIN
 from lib.request.templates import getPageTemplate
-from thirdparty import six
-from thirdparty.six import unichr as _unichr
-from thirdparty.six.moves import http_client as _http_client
+from http import client as _http_client
 
 _rand = 0
 
@@ -57,16 +55,15 @@ def dirtyPatches():
     _http_client._MAXLINE = 1 * 1024 * 1024
 
     # prevent double chunked encoding in case of sqlmap chunking (Note: Python3 does it automatically if 'Content-length' is missing)
-    if six.PY3:
-        if not hasattr(_http_client.HTTPConnection, "__send_output"):
-            _http_client.HTTPConnection.__send_output = _http_client.HTTPConnection._send_output
+    if not hasattr(_http_client.HTTPConnection, "__send_output"):
+        _http_client.HTTPConnection.__send_output = _http_client.HTTPConnection._send_output
 
-        def _send_output(self, *args, **kwargs):
-            if conf.get("chunked") and "encode_chunked" in kwargs:
-                kwargs["encode_chunked"] = False
-            self.__send_output(*args, **kwargs)
+    def _send_output(self, *args, **kwargs):
+        if conf.get("chunked") and "encode_chunked" in kwargs:
+            kwargs["encode_chunked"] = False
+        self.__send_output(*args, **kwargs)
 
-        _http_client.HTTPConnection._send_output = _send_output
+    _http_client.HTTPConnection._send_output = _send_output
 
     # add support for inet_pton() on Windows OS
     if IS_WIN:
@@ -94,10 +91,7 @@ def dirtyPatches():
     try:
         os.urandom(1)
     except NotImplementedError:
-        if six.PY3:
-            os.urandom = lambda size: bytes(random.randint(0, 255) for _ in range(size))
-        else:
-            os.urandom = lambda size: "".join(chr(random.randint(0, 255)) for _ in xrange(size))
+        os.urandom = lambda size: bytes(random.randint(0, 255) for _ in range(size))
 
     # Reference: https://github.com/sqlmapproject/sqlmap/issues/5727
     # Reference: https://stackoverflow.com/a/14076841
@@ -130,9 +124,12 @@ def dirtyPatches():
     # Installing "reversible" unicode (decoding) error handler
     def _reversible(ex):
         if INVALID_UNICODE_PRIVATE_AREA:
-            return (u"".join(_unichr(int('000f00%2x' % (_ if isinstance(_, int) else ord(_)), 16)) for _ in ex.object[ex.start:ex.end]), ex.end)
+            return ("".join(
+                chr(int('000f00%2x' % (_ if isinstance(_, int) else ord(_)), 16)) for _ in ex.object[ex.start:ex.end]),
+                    ex.end)
         else:
-            return (u"".join(INVALID_UNICODE_CHAR_FORMAT % (_ if isinstance(_, int) else ord(_)) for _ in ex.object[ex.start:ex.end]), ex.end)
+            return ("".join(INVALID_UNICODE_CHAR_FORMAT % (_ if isinstance(_, int) else ord(_)) for _ in
+                            ex.object[ex.start:ex.end]), ex.end)
 
     codecs.register_error("reversible", _reversible)
 
@@ -202,7 +199,7 @@ def unisonRandom():
         return seq[_randint(0, len(seq) - 1)]
 
     def _sample(population, k):
-        return [_choice(population) for _ in xrange(k)]
+        return [_choice(population) for _ in range(k)]
 
     def _seed(seed):
         global _rand

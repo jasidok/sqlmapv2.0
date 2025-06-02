@@ -505,13 +505,10 @@ class Connect(object):
                     value = re.sub(r"(?i)(,)br(,)?", lambda match: ',' if match.group(1) and match.group(2) else "", value) or "identity"
 
                 del headers[key]
-                if isinstance(value, six.string_types):
+                if isinstance(value, str):
                     for char in (r"\r", r"\n"):
                         value = re.sub(r"(%s)([^ \t])" % char, r"\g<1>\t\g<2>", value)
-                    headers[getBytes(key) if six.PY2 else key] = getBytes(value.strip("\r\n"))  # Note: Python3 has_header() expects non-bytes value
-
-            if six.PY2:
-                url = getBytes(url)  # Note: Python3 requires text while Python2 has problems when mixing text with binary POST
+                    headers[key] = value.strip("\r\n")
 
             if webSocket:
                 ws = websocket.WebSocket()
@@ -1146,7 +1143,10 @@ class Connect(object):
                         postUrlEncode = False
 
             if conf.hpp:
-                if not any(conf.url.lower().endswith(_.lower()) for _ in (WEB_PLATFORM.ASP, WEB_PLATFORM.ASPX)):
+                # Pre-compute lowercase URL once to avoid redundant lower() calls
+                url_lower = conf.url.lower()
+                web_platforms_lower = [platform.lower() for platform in (WEB_PLATFORM.ASP, WEB_PLATFORM.ASPX)]
+                if not any(url_lower.endswith(platform) for platform in web_platforms_lower):
                     warnMsg = "HTTP parameter pollution should work only against "
                     warnMsg += "ASP(.NET) targets"
                     singleTimeWarnMessage(warnMsg)

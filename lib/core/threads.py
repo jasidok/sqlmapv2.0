@@ -5,8 +5,6 @@ Copyright (c) 2006-2025 sqlmap developers (https://sqlmap.org)
 See the file 'LICENSE' for copying permission
 """
 
-from __future__ import print_function
-
 import difflib
 import sqlite3
 import threading
@@ -27,7 +25,6 @@ from lib.core.exception import SqlmapThreadException
 from lib.core.exception import SqlmapUserQuitException
 from lib.core.exception import SqlmapValueException
 from lib.core.settings import MAX_NUMBER_OF_THREADS
-from lib.core.settings import PYVERSION
 
 shared = AttribDict()
 
@@ -68,6 +65,7 @@ class _ThreadData(threading.local):
         self.technique = None
         self.validationRun = 0
         self.valueStack = []
+        self.threadErrors = []  # Store thread-specific errors for exception groups
 
 ThreadData = _ThreadData()
 
@@ -104,21 +102,24 @@ def exceptionHandledFunction(threadFunction, silent=False):
         from lib.core.common import getSafeExString
 
         if not silent and kb.get("threadContinue") and not kb.get("multipleCtrlC") and not isinstance(ex, (SqlmapUserQuitException, SqlmapSkipTargetException)):
-            errMsg = getSafeExString(ex) if isinstance(ex, SqlmapBaseException) else "%s: %s" % (type(ex).__name__, getSafeExString(ex))
-            logger.error("thread %s: '%s'" % (threading.currentThread().getName(), errMsg))
+            errMsg = getSafeExString(ex) if isinstance(ex,
+                                                       SqlmapBaseException) else f"{type(ex).__name__}: {getSafeExString(ex)}"
+            logger.error(f"thread {threading.current_thread().name}: '{errMsg}'")
+
+            # Store exception for potential exception group usage
+            thread_data = getCurrentThreadData()
+            thread_data.threadErrors.append(ex)
 
             if conf.get("verbose") > 1 and not isinstance(ex, SqlmapConnectionException):
                 traceback.print_exc()
 
 def setDaemon(thread):
     # Reference: http://stackoverflow.com/questions/190010/daemon-threads-explanation
-    if PYVERSION >= "2.6":
-        thread.daemon = True
-    else:
-        thread.setDaemon(True)
+    thread.daemon = True
 
 def runThreads(numThreads, threadFunction, cleanupFunction=None, forwardException=True, threadChoice=False, startThreadMsg=True):
     threads = []
+    thread_errors = []  # Collect errors from all threads
 
     def _threadFunction():
         try:
@@ -182,6 +183,7 @@ def runThreads(numThreads, threadFunction, cleanupFunction=None, forwardExceptio
             except Exception as ex:
                 errMsg = "error occurred while starting new thread ('%s')" % ex
                 logger.critical(errMsg)
+                thread_errors.append(ex)
                 break
 
             threads.append(thread)
@@ -194,6 +196,15 @@ def runThreads(numThreads, threadFunction, cleanupFunction=None, forwardExceptio
                 if thread.is_alive():
                     alive = True
                     time.sleep(0.1)
+
+        # Collect any thread-specific errors
+        for thread in threads:
+            try:
+                thread_data = getCurrentThreadData()
+                if hasattr(thread_data, 'threadErrors') and thread_data.threadErrors:
+                    thread_errors.extend(thread_data.threadErrors)
+            except:
+                pass  # Thread data might not be accessible after thread completion
 
     except (KeyboardInterrupt, SqlmapUserQuitException) as ex:
         print()
@@ -260,3 +271,18 @@ def runThreads(numThreads, threadFunction, cleanupFunction=None, forwardExceptio
 
         if cleanupFunction:
             cleanupFunction()
+
+        # If we collected multiple thread errors, raise them as an exception group
+        if thread_errors and len(thread_errors) > 1:
+            try:
+                raise ExceptionGroup("Multiple thread errors occurred", thread_errors)
+            except NameError:
+                # Fallback for systems without ExceptionGroup (should not happen in Python 3.11+)
+                logger.error(f"Multiple thread errors occurred: {len(thread_errors)} errors collected")
+                for i, error in enumerate(thread_errors[:5]):  # Show first 5 errors
+                    logger.error(f"Thread error {i + 1}: {type(error).__name__}: {error}")
+                if len(thread_errors) > 5:
+                    logger.error(f"... and {len(thread_errors) - 5} more errors")
+        elif thread_errors and forwardException:
+            # Single error, re-raise it normally
+            raise thread_errors[0]

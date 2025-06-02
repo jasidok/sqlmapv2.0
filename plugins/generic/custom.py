@@ -5,8 +5,6 @@ Copyright (c) 2006-2025 sqlmap developers (https://sqlmap.org)
 See the file 'LICENSE' for copying permission
 """
 
-from __future__ import print_function
-
 import re
 import sys
 
@@ -29,7 +27,6 @@ from lib.core.settings import NULL
 from lib.core.settings import PARAMETER_SPLITTING_REGEX
 from lib.core.shell import autoCompletion
 from lib.request import inject
-from thirdparty.six.moves import input as _input
 
 class Custom(object):
     """
@@ -104,7 +101,7 @@ class Custom(object):
             query = None
 
             try:
-                query = _input("sql-shell> ")
+                query = input("sql-shell> ")
                 query = getUnicode(query, encoding=sys.stdin.encoding)
                 query = query.strip("; ")
             except UnicodeDecodeError:

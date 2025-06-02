@@ -1,6 +1,6 @@
 # sqlmap ![](https://i.imgur.com/fe85aVR.png)
 
-[![.github/workflows/tests.yml](https://github.com/sqlmapproject/sqlmap/actions/workflows/tests.yml/badge.svg)](https://github.com/sqlmapproject/sqlmap/actions/workflows/tests.yml) [![Python 2.6|2.7|3.x](https://img.shields.io/badge/python-2.6|2.7|3.x-yellow.svg)](https://www.python.org/) [![License](https://img.shields.io/badge/license-GPLv2-red.svg)](https://raw.githubusercontent.com/sqlmapproject/sqlmap/master/LICENSE) [![x](https://img.shields.io/badge/x-@sqlmap-blue.svg)](https://x.com/sqlmap)
+[![.github/workflows/tests.yml](https://github.com/sqlmapproject/sqlmap/actions/workflows/tests.yml/badge.svg)](https://github.com/sqlmapproject/sqlmap/actions/workflows/tests.yml) [![Python 3.11+](https://img.shields.io/badge/python-3.11+-yellow.svg)](https://www.python.org/) [![License](https://img.shields.io/badge/license-GPLv2-red.svg)](https://raw.githubusercontent.com/sqlmapproject/sqlmap/master/LICENSE) [![x](https://img.shields.io/badge/x-@sqlmap-blue.svg)](https://x.com/sqlmap)
 
 sqlmap ist ein quelloffenes Penetrationstest Werkzeug, das die Entdeckung, Ausnutzung und Übernahme von SQL injection Schwachstellen automatisiert. Es kommt mit einer mächtigen Erkennungs-Engine, vielen Nischenfunktionen für den ultimativen Penetrationstester und einem breiten Spektrum an Funktionen von Datenbankerkennung, abrufen von Daten aus der Datenbank, zugreifen auf das unterliegende Dateisystem bis hin zur Befehlsausführung auf dem Betriebssystem mit Hilfe von out-of-band Verbindungen.
 
@@ -19,8 +19,9 @@ Installation
 Vorzugsweise kannst du sqlmap herunterladen, indem du das [GIT](https://github.com/sqlmapproject/sqlmap) Repository klonst:
 
     git clone --depth 1 https://github.com/sqlmapproject/sqlmap.git sqlmap-dev
-    
-sqlmap funktioniert sofort mit den [Python](https://www.python.org/download/) Versionen 2.6, 2.7 und 3.x auf jeder Plattform.
+
+sqlmap funktioniert sofort mit den [Python](https://www.python.org/download/) Versionen 3.11 oder höher auf jeder
+Plattform.
 
 Benutzung
 ---

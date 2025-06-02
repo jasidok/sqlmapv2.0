@@ -6,40 +6,51 @@ See the file 'LICENSE' for copying permission
 """
 
 import zipfile
+from typing import List, Union, Optional, Any, Iterator
 
 from lib.core.common import getSafeExString
 from lib.core.common import isZipFile
 from lib.core.exception import SqlmapDataException
 from lib.core.exception import SqlmapInstallationException
-from thirdparty import six
 
-class Wordlist(six.Iterator):
+
+class Wordlist(object):
     """
-    Iterator for looping over a large dictionaries
+    Iterator for looping over a large dictionaries with context manager support
 
     >>> from lib.core.option import paths
-    >>> isinstance(next(Wordlist(paths.SMALL_DICT)), six.binary_type)
+    >>> isinstance(next(Wordlist(paths.SMALL_DICT)), bytes)
     True
-    >>> isinstance(next(Wordlist(paths.WORDLIST)), six.binary_type)
+    >>> isinstance(next(Wordlist(paths.WORDLIST)), bytes)
+    True
+    >>> with Wordlist(paths.SMALL_DICT) as wl:
+    ...     isinstance(next(wl), bytes)
     True
     """
 
-    def __init__(self, filenames, proc_id=None, proc_count=None, custom=None):
-        self.filenames = [filenames] if isinstance(filenames, six.string_types) else filenames
-        self.fp = None
-        self.index = 0
-        self.counter = -1
-        self.current = None
-        self.iter = None
-        self.custom = custom or []
-        self.proc_id = proc_id
-        self.proc_count = proc_count
+    def __init__(self, filenames: Union[str, List[str]], proc_id: Optional[int] = None,
+                 proc_count: Optional[int] = None, custom: Optional[List[str]] = None) -> None:
+        self.filenames: List[str] = [filenames] if isinstance(filenames, str) else filenames
+        self.fp: Optional[Any] = None
+        self.index: int = 0
+        self.counter: int = -1
+        self.current: Optional[str] = None
+        self.iter: Optional[Iterator[bytes]] = None
+        self.custom: List[str] = custom or []
+        self.proc_id: Optional[int] = proc_id
+        self.proc_count: Optional[int] = proc_count
         self.adjust()
 
-    def __iter__(self):
+    def __iter__(self) -> 'Wordlist':
         return self
 
-    def adjust(self):
+    def __enter__(self) -> 'Wordlist':
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.closeFP()
+
+    def adjust(self) -> None:
         self.closeFP()
         if self.index > len(self.filenames):
             return  # Note: https://stackoverflow.com/a/30217723 (PEP 479)
@@ -65,13 +76,13 @@ class Wordlist(six.Iterator):
 
         self.index += 1
 
-    def closeFP(self):
+    def closeFP(self) -> None:
         if self.fp:
             self.fp.close()
             self.fp = None
 
-    def __next__(self):
-        retVal = None
+    def __next__(self) -> bytes:
+        retVal: Optional[bytes] = None
         while True:
             self.counter += 1
             try:
@@ -88,6 +99,6 @@ class Wordlist(six.Iterator):
                 break
         return retVal
 
-    def rewind(self):
+    def rewind(self) -> None:
         self.index = 0
         self.adjust()

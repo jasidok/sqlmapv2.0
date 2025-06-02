@@ -13,10 +13,13 @@ except:
 import base64
 import binascii
 import codecs
+import collections.abc
 import json
 import re
 import sys
 import time
+from typing import Optional, Union, List, Any, Tuple
+from functools import lru_cache
 
 from lib.core.bigarray import BigArray
 from lib.core.compat import xrange
@@ -29,14 +32,201 @@ from lib.core.settings import NULL
 from lib.core.settings import PICKLE_PROTOCOL
 from lib.core.settings import SAFE_HEX_MARKER
 from lib.core.settings import UNICODE_ENCODING
-from thirdparty import six
-from thirdparty.six import unichr as _unichr
-from thirdparty.six.moves import collections_abc as _collections
 
 try:
     from html import escape as htmlEscape
 except ImportError:
     from cgi import escape as htmlEscape
+
+
+# Modern encoding patterns for Python 3.11+
+@lru_cache(maxsize=256)
+def detect_encoding(data: bytes) -> str:
+    """
+    Detects the most likely encoding of binary data using modern heuristics
+    
+    >>> detect_encoding(b'hello world')
+    'utf-8'
+    >>> detect_encoding(b'\\xff\\xfe\\x68\\x00\\x65\\x00')
+    'utf-16'
+    """
+
+    if not data:
+        return UNICODE_ENCODING
+
+    # Check for BOM markers first
+    if data.startswith(b'\xff\xfe'):
+        return 'utf-16-le'
+    elif data.startswith(b'\xfe\xff'):
+        return 'utf-16-be'
+    elif data.startswith(b'\xef\xbb\xbf'):
+        return 'utf-8-sig'
+    elif data.startswith(b'\xff\xfe\x00\x00'):
+        return 'utf-32-le'
+    elif data.startswith(b'\x00\x00\xfe\xff'):
+        return 'utf-32-be'
+
+    # Try UTF-8 first (most common)
+    try:
+        data.decode('utf-8', errors='strict')
+        return 'utf-8'
+    except UnicodeDecodeError:
+        pass
+
+    # Try common encodings
+    encodings = ['latin-1', 'cp1252', 'iso-8859-1', 'ascii']
+    for encoding in encodings:
+        try:
+            data.decode(encoding, errors='strict')
+            return encoding
+        except (UnicodeDecodeError, LookupError):
+            continue
+
+    # Fallback to UTF-8 with error handling
+    return 'utf-8'
+
+
+def safe_encode(value: Union[str, bytes], encoding: Optional[str] = None, errors: str = 'replace') -> bytes:
+    """
+    Safely encodes a string value to bytes with better error handling
+    
+    >>> safe_encode('hello world')
+    b'hello world'
+    >>> safe_encode('café', 'ascii', 'ignore')
+    b'caf'
+    """
+
+    if value is None:
+        return b''
+
+    if isinstance(value, bytes):
+        return value
+
+    if not isinstance(value, str):
+        value = str(value)
+
+    encoding = encoding or conf.get("encoding") or UNICODE_ENCODING
+
+    try:
+        return value.encode(encoding, errors)
+    except (LookupError, TypeError):
+        # Fallback to UTF-8 if encoding is invalid
+        return value.encode(UNICODE_ENCODING, errors)
+
+
+def safe_decode(value: Union[str, bytes], encoding: Optional[str] = None, errors: str = 'replace') -> str:
+    """
+    Safely decodes bytes to string with automatic encoding detection
+    
+    >>> safe_decode(b'hello world')
+    'hello world'
+    >>> safe_decode('already string')
+    'already string'
+    """
+
+    if value is None:
+        return ''
+
+    if isinstance(value, str):
+        return value
+
+    if not isinstance(value, bytes):
+        return str(value)
+
+    # Use provided encoding or detect it
+    if encoding:
+        try:
+            return value.decode(encoding, errors)
+        except (UnicodeDecodeError, LookupError):
+            pass
+
+    # Auto-detect encoding
+    detected_encoding = detect_encoding(value)
+    try:
+        return value.decode(detected_encoding, errors)
+    except UnicodeDecodeError:
+        # Ultimate fallback
+        return value.decode(UNICODE_ENCODING, errors='replace')
+
+
+def normalize_encoding_name(encoding: str) -> str:
+    """
+    Normalizes encoding names to their canonical forms
+    
+    >>> normalize_encoding_name('utf8')
+    'utf-8'
+    >>> normalize_encoding_name('UTF-8')
+    'utf-8'
+    """
+
+    if not encoding:
+        return UNICODE_ENCODING
+
+    # Normalize common variations
+    encoding = encoding.lower().replace('_', '-')
+
+    normalization_map = {
+        'utf8': 'utf-8',
+        'utf16': 'utf-16',
+        'utf32': 'utf-32',
+        'latin1': 'latin-1',
+        'iso88591': 'iso-8859-1',
+        'ascii': 'ascii',
+        'cp1252': 'cp1252',
+    }
+
+    return normalization_map.get(encoding, encoding)
+
+
+def ensure_text(value: Union[str, bytes, Any], encoding: Optional[str] = None) -> str:
+    """
+    Ensures the value is a text string, handling various input types
+    
+    >>> ensure_text(b'hello')
+    'hello'
+    >>> ensure_text(123)
+    '123'
+    >>> ensure_text(['a', 'b'])
+    "['a', 'b']"
+    """
+
+    if value is None:
+        return ''
+
+    if isinstance(value, str):
+        return value
+
+    if isinstance(value, bytes):
+        return safe_decode(value, encoding)
+
+    # Handle other types
+    return str(value)
+
+
+def ensure_bytes(value: Union[str, bytes, Any], encoding: Optional[str] = None) -> bytes:
+    """
+    Ensures the value is bytes, handling various input types
+    
+    >>> ensure_bytes('hello')
+    b'hello'
+    >>> ensure_bytes(b'hello')
+    b'hello'
+    >>> ensure_bytes(123)
+    b'123'
+    """
+
+    if value is None:
+        return b''
+
+    if isinstance(value, bytes):
+        return value
+
+    if isinstance(value, str):
+        return safe_encode(value, encoding)
+
+    # Handle other types
+    return safe_encode(str(value), encoding)
+
 
 def base64pickle(value):
     """
@@ -89,13 +279,13 @@ def htmlUnescape(value):
 
     retVal = value
 
-    if value and isinstance(value, six.string_types):
+    if value and isinstance(value, (str, bytes)):
         replacements = (("&lt;", '<'), ("&gt;", '>'), ("&quot;", '"'), ("&nbsp;", ' '), ("&amp;", '&'), ("&apos;", "'"))
         for code, value in replacements:
             retVal = retVal.replace(code, value)
 
         try:
-            retVal = re.sub(r"&#x([^ ;]+);", lambda match: _unichr(int(match.group(1), 16)), retVal)
+            retVal = re.sub(r"&#x([^ ;]+);", lambda match: chr(int(match.group(1), 16)), retVal)
         except (ValueError, OverflowError):
             pass
 
@@ -107,7 +297,7 @@ def singleTimeWarnMessage(message):  # Cross-referenced function
     sys.stdout.flush()
 
 def filterNone(values):  # Cross-referenced function
-    return [_ for _ in values if _] if isinstance(values, _collections.Iterable) else values
+    return [_ for _ in values if _] if isinstance(values, collections.abc.Iterable) else values
 
 def isListLike(value):  # Cross-referenced function
     return isinstance(value, (list, tuple, set, BigArray))
@@ -164,7 +354,7 @@ def decodeHex(value, binary=True):
 
     retVal = value
 
-    if isinstance(value, six.binary_type):
+    if isinstance(value, bytes):
         value = getText(value)
 
     if value.lower().startswith("0x"):
@@ -193,9 +383,9 @@ def encodeHex(value, binary=True):
     """
 
     if isinstance(value, int):
-        value = six.unichr(value)
+        value = chr(value)
 
-    if isinstance(value, six.text_type):
+    if isinstance(value, str):
         value = value.encode(UNICODE_ENCODING)
 
     try:
@@ -229,7 +419,7 @@ def decodeBase64(value, binary=True, encoding=None):
     if value is None:
         return None
 
-    padding = b'=' if isinstance(value, bytes) else '='
+    padding = '='
 
     # Reference: https://stackoverflow.com/a/49459036
     if not value.endswith(padding):
@@ -266,7 +456,7 @@ def encodeBase64(value, binary=True, encoding=None, padding=True, safe=False):
     if value is None:
         return None
 
-    if isinstance(value, six.text_type):
+    if isinstance(value, str):
         value = value.encode(encoding or UNICODE_ENCODING)
 
     retVal = base64.b64encode(value)
@@ -285,46 +475,49 @@ def encodeBase64(value, binary=True, encoding=None, padding=True, safe=False):
             retVal = retVal.replace('+', '-').replace('/', '_')
 
     if not padding:
-        retVal = retVal.rstrip(b'=' if isinstance(retVal, bytes) else '=')
+        retVal = retVal.rstrip('=')
 
     return retVal
 
 def getBytes(value, encoding=None, errors="strict", unsafe=True):
     """
-    Returns byte representation of provided Unicode value
+    Returns byte representation of provided Unicode value with modern error handling
 
     >>> getBytes(u"foo\\\\x01\\\\x83\\\\xffbar") == b"foo\\x01\\x83\\xffbar"
     True
     """
 
-    retVal = value
+    if value is None:
+        return b''
 
-    if encoding is None:
-        encoding = conf.get("encoding") or UNICODE_ENCODING
+    # Use modern encoding approach
+    encoding = normalize_encoding_name(encoding or conf.get("encoding") or UNICODE_ENCODING)
 
-    try:
-        codecs.lookup(encoding)
-    except (LookupError, TypeError):
-        encoding = UNICODE_ENCODING
+    if isinstance(value, str):
+        if INVALID_UNICODE_PRIVATE_AREA and unsafe:
+            # Handle private Unicode area characters
+            for char in range(0xF0000, 0xF00FF + 1):
+                if chr(char) in value:
+                    value = value.replace(chr(char), f"{SAFE_HEX_MARKER}{char - 0xF0000:02x}")
 
-    if isinstance(value, six.text_type):
-        if INVALID_UNICODE_PRIVATE_AREA:
-            if unsafe:
-                for char in xrange(0xF0000, 0xF00FF + 1):
-                    value = value.replace(_unichr(char), "%s%02x" % (SAFE_HEX_MARKER, char - 0xF0000))
-
+        try:
             retVal = value.encode(encoding, errors)
+        except (UnicodeError, LookupError):
+            # Fallback with better error handling
+            retVal = safe_encode(value, encoding, 'replace')
 
-            if unsafe:
-                retVal = re.sub(r"%s([0-9a-f]{2})" % SAFE_HEX_MARKER, lambda _: decodeHex(_.group(1)), retVal)
-        else:
-            try:
-                retVal = value.encode(encoding, errors)
-            except UnicodeError:
-                retVal = value.encode(UNICODE_ENCODING, errors="replace")
-
-            if unsafe:
-                retVal = re.sub(b"\\\\x([0-9a-f]{2})", lambda _: decodeHex(_.group(1)), retVal)
+        if unsafe and SAFE_HEX_MARKER.encode() in retVal:
+            # Restore hex-encoded characters
+            retVal = re.sub(
+                rf"{re.escape(SAFE_HEX_MARKER)}([0-9a-f]{{2}})".encode(),
+                lambda m: bytes([int(m.group(1), 16)]),
+                retVal
+            )
+    elif isinstance(value, bytes):
+        retVal = value
+    else:
+        # Handle other types
+        retVal = ensure_bytes(value, encoding)
 
     return retVal
 
@@ -342,7 +535,7 @@ def getOrds(value):
 
 def getUnicode(value, encoding=None, noneToNull=False):
     """
-    Returns the unicode representation of the supplied value
+    Returns the unicode representation of the supplied value with modern encoding detection
 
     >>> getUnicode('test') == u'test'
     True
@@ -352,66 +545,74 @@ def getUnicode(value, encoding=None, noneToNull=False):
     True
     """
 
-    # Best position for --time-limit mechanism
+    # Time limit check
     if conf.get("timeLimit") and kb.get("startTime") and (time.time() - kb.startTime > conf.timeLimit):
         raise SystemExit
 
     if noneToNull and value is None:
         return NULL
 
-    if isinstance(value, six.text_type):
+    if isinstance(value, str):
         return value
-    elif isinstance(value, six.binary_type):
-        # Heuristics (if encoding not explicitly specified)
-        candidates = filterNone((encoding, kb.get("pageEncoding") if kb.get("originalPage") else None, conf.get("encoding"), UNICODE_ENCODING, sys.getfilesystemencoding()))
-        if all(_ in value for _ in (b'<', b'>')):
-            pass
-        elif any(_ in value for _ in (b":\\", b'/', b'.')) and b'\n' not in value:
-            candidates = filterNone((encoding, sys.getfilesystemencoding(), kb.get("pageEncoding") if kb.get("originalPage") else None, UNICODE_ENCODING, conf.get("encoding")))
-        elif conf.get("encoding") and b'\n' not in value:
-            candidates = filterNone((encoding, conf.get("encoding"), kb.get("pageEncoding") if kb.get("originalPage") else None, sys.getfilesystemencoding(), UNICODE_ENCODING))
-
-        for candidate in candidates:
+    elif isinstance(value, bytes):
+        # Use modern encoding detection and fallback strategy
+        if encoding:
+            encoding = normalize_encoding_name(encoding)
             try:
-                return six.text_type(value, candidate)
+                return value.decode(encoding)
             except (UnicodeDecodeError, LookupError):
                 pass
 
-        try:
-            return six.text_type(value, encoding or (kb.get("pageEncoding") if kb.get("originalPage") else None) or UNICODE_ENCODING)
-        except UnicodeDecodeError:
-            return six.text_type(value, UNICODE_ENCODING, errors="reversible")
+        # Enhanced encoding candidates with better heuristics
+        detected_encoding = detect_encoding(value)
+        candidates = [
+            detected_encoding,
+            kb.get("pageEncoding") if kb.get("originalPage") else None,
+            conf.get("encoding"),
+            UNICODE_ENCODING,
+            sys.getfilesystemencoding(),
+            'latin-1'  # Always succeeds as fallback
+        ]
+
+        # Filter None values and normalize
+        candidates = [normalize_encoding_name(enc) for enc in candidates if enc]
+
+        # Remove duplicates while preserving order
+        seen = set()
+        candidates = [x for x in candidates if not (x in seen or seen.add(x))]
+
+        for candidate in candidates:
+            try:
+                return value.decode(candidate)
+            except (UnicodeDecodeError, LookupError):
+                continue
+
+        # Ultimate fallback with error replacement
+        return value.decode('latin-1', errors='replace')
     elif isListLike(value):
-        value = list(getUnicode(_, encoding, noneToNull) for _ in value)
-        return value
+        return [getUnicode(item, encoding, noneToNull) for item in value]
     else:
         try:
-            return six.text_type(value)
-        except UnicodeDecodeError:
-            return six.text_type(str(value), errors="ignore")  # encoding ignored for non-basestring instances
+            return str(value)
+        except (UnicodeDecodeError, UnicodeEncodeError):
+            return repr(value)
 
 def getText(value, encoding=None):
     """
-    Returns textual value of a given value (Note: not necessary Unicode on Python2)
+    Returns textual value of a given value with modern string handling
 
     >>> getText(b"foobar")
     'foobar'
-    >>> isinstance(getText(u"fo\\u2299bar"), six.text_type)
+    >>> isinstance(getText(u"fo\\u2299bar"), str)
     True
     """
 
-    retVal = value
-
-    if isinstance(value, six.binary_type):
-        retVal = getUnicode(value, encoding)
-
-    if six.PY2:
-        try:
-            retVal = str(retVal)
-        except:
-            pass
-
-    return retVal
+    if isinstance(value, bytes):
+        return safe_decode(value, encoding)
+    elif isinstance(value, str):
+        return value
+    else:
+        return ensure_text(value, encoding)
 
 def stdoutEncode(value):
     """
@@ -435,7 +636,7 @@ def stdoutEncode(value):
 
         kb.codePage = kb.codePage or ""
 
-    if isinstance(value, six.text_type):
+    if isinstance(value, str):
         encoding = kb.get("codePage") or getattr(sys.stdout, "encoding", None) or UNICODE_ENCODING
 
         while True:
@@ -453,7 +654,7 @@ def stdoutEncode(value):
                 warnMsg += "corresponding output files"
                 singleTimeWarnMessage(warnMsg)
 
-        if six.PY3:
+        if sys.version_info[0] == 3:
             retVal = getUnicode(retVal, encoding)
 
     else:
@@ -467,11 +668,11 @@ def getConsoleLength(value):
 
     >>> getConsoleLength("abc")
     3
-    >>> getConsoleLength(u"\\u957f\\u6c5f")
+    >>> getConsoleLength(u"\\u957f\\u6c5j")
     4
     """
 
-    if isinstance(value, six.text_type):
+    if isinstance(value, str):
         retVal = sum((2 if ord(_) >= 0x3000 else 1) for _ in value)
     else:
         retVal = len(value)

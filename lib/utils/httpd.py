@@ -5,10 +5,10 @@ Copyright (c) 2006-2025 sqlmap developers (https://sqlmap.org)
 See the file 'LICENSE' for copying permission
 """
 
-from __future__ import print_function
-
 import mimetypes
+
 import gzip
+import io
 import os
 import re
 import sys
@@ -21,11 +21,11 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".
 from lib.core.enums import HTTP_HEADER
 from lib.core.settings import UNICODE_ENCODING
 from lib.core.settings import VERSION_STRING
-from thirdparty import six
-from thirdparty.six.moves import BaseHTTPServer as _BaseHTTPServer
-from thirdparty.six.moves import http_client as _http_client
-from thirdparty.six.moves import socketserver as _socketserver
-from thirdparty.six.moves import urllib as _urllib
+from http.server import BaseHTTPRequestHandler as _BaseHTTPRequestHandler
+from http.server import HTTPServer as _BaseHTTPServer
+from http import client as _http_client
+from socketserver import ThreadingMixIn as _ThreadingMixIn
+from urllib import parse as _urllib_parse
 
 HTTP_ADDRESS = "0.0.0.0"
 HTTP_PORT = 8951
@@ -33,22 +33,24 @@ DEBUG = True
 HTML_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "html"))
 DISABLED_CONTENT_EXTENSIONS = (".py", ".pyc", ".md", ".txt", ".bak", ".conf", ".zip", "~")
 
-class ThreadingServer(_socketserver.ThreadingMixIn, _BaseHTTPServer.HTTPServer):
+
+class ThreadingServer(_ThreadingMixIn, _BaseHTTPServer):
     def finish_request(self, *args, **kwargs):
         try:
-            _BaseHTTPServer.HTTPServer.finish_request(self, *args, **kwargs)
+            _BaseHTTPServer.finish_request(self, *args, **kwargs)
         except Exception:
             if DEBUG:
                 traceback.print_exc()
 
-class ReqHandler(_BaseHTTPServer.BaseHTTPRequestHandler):
+
+class ReqHandler(_BaseHTTPRequestHandler):
     def do_GET(self):
         path, query = self.path.split('?', 1) if '?' in self.path else (self.path, "")
         params = {}
         content = None
 
         if query:
-            params.update(_urllib.parse.parse_qs(query))
+            params.update(_urllib_parse.parse_qs(query))
 
         for key in params:
             if params[key]:
@@ -86,7 +88,7 @@ class ReqHandler(_BaseHTTPServer.BaseHTTPRequestHandler):
 
             if "gzip" in self.headers.get(HTTP_HEADER.ACCEPT_ENCODING):
                 self.send_header(HTTP_HEADER.CONTENT_ENCODING, "gzip")
-                _ = six.BytesIO()
+                _ = io.BytesIO()
                 compress = gzip.GzipFile("", "w+b", 9, _)
                 compress._stream = _
                 compress.write(content)
@@ -118,7 +120,7 @@ class ReqHandler(_BaseHTTPServer.BaseHTTPRequestHandler):
 
     def finish(self):
         try:
-            _BaseHTTPServer.BaseHTTPRequestHandler.finish(self)
+            _BaseHTTPRequestHandler.finish(self)
         except Exception:
             if DEBUG:
                 traceback.print_exc()

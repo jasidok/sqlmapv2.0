@@ -13,7 +13,7 @@ from lib.core.data import logger
 from lib.core.datatype import OrderedSet
 from lib.core.exception import SqlmapSyntaxException
 from lib.request.connect import Connect as Request
-from thirdparty.six.moves import http_client as _http_client
+from http import client as _http_client
 
 abortedFlag = None
 
@@ -38,7 +38,8 @@ def parseSitemap(url, retVal=None):
             if abortedFlag:
                 break
             url = match.group(1).strip()
-            if url.endswith(".xml") and "sitemap" in url.lower():
+            url_lower = url.lower()
+            if url_lower.endswith(".xml") and "sitemap" in url_lower:
                 if kb.followSitemapRecursion is None:
                     message = "sitemap recursion detected. Do you want to follow? [y/N] "
                     kb.followSitemapRecursion = readInput(message, default='N', boolean=True)

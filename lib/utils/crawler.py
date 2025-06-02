@@ -5,8 +5,6 @@ Copyright (c) 2006-2025 sqlmap developers (https://sqlmap.org)
 See the file 'LICENSE' for copying permission
 """
 
-from __future__ import division
-
 import os
 import re
 import tempfile
@@ -36,10 +34,9 @@ from lib.core.threads import getCurrentThreadData
 from lib.core.threads import runThreads
 from lib.parse.sitemap import parseSitemap
 from lib.request.connect import Connect as Request
-from thirdparty import six
 from thirdparty.beautifulsoup.beautifulsoup import BeautifulSoup
-from thirdparty.six.moves import http_client as _http_client
-from thirdparty.six.moves import urllib as _urllib
+import http.client as _http_client
+import urllib.parse as _urllib
 
 def crawl(target, post=None, cookie=None):
     if not target:
@@ -88,7 +85,7 @@ def crawl(target, post=None, cookie=None):
                 if not kb.threadContinue:
                     break
 
-                if isinstance(content, six.text_type):
+                if isinstance(content, str):
                     try:
                         match = re.search(r"(?si)<html[^>]*>(.+)</html>", content)
                         if match:
@@ -106,7 +103,7 @@ def crawl(target, post=None, cookie=None):
                             if href:
                                 if threadData.lastRedirectURL and threadData.lastRedirectURL[0] == threadData.lastRequestUID:
                                     current = threadData.lastRedirectURL[1]
-                                url = _urllib.parse.urljoin(current, htmlUnescape(href))
+                                url = _urllib.urljoin(current, htmlUnescape(href))
 
                                 # flag to know if we are dealing with the same target host
                                 _ = checkSameHost(url, target)
@@ -156,7 +153,7 @@ def crawl(target, post=None, cookie=None):
         if kb.checkSitemap:
             found = True
             items = None
-            url = _urllib.parse.urljoin(target, "/sitemap.xml")
+            url = _urllib.urljoin(target, "/sitemap.xml")
             try:
                 items = parseSitemap(url)
             except SqlmapConnectionException as ex:

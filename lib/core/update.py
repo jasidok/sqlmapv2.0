@@ -30,7 +30,7 @@ from lib.core.settings import IS_WIN
 from lib.core.settings import VERSION
 from lib.core.settings import TYPE
 from lib.core.settings import ZIPBALL_PAGE
-from thirdparty.six.moves import urllib as _urllib
+import urllib.request as _urllib
 
 def update():
     if not conf.updateAll:

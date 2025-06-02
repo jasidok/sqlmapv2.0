@@ -6,9 +6,10 @@ See the file 'LICENSE' for copying permission
 """
 
 from lib.core.convert import getText
-from thirdparty.six.moves import urllib as _urllib
+from urllib import request as _urllib_request
 
-class MethodRequest(_urllib.request.Request):
+
+class MethodRequest(_urllib_request.Request):
     """
     Used to create HEAD/PUT/DELETE/... requests with urllib
     """
@@ -17,4 +18,4 @@ class MethodRequest(_urllib.request.Request):
         self.method = getText(method.upper())  # Dirty hack for Python3 (may it rot in hell!)
 
     def get_method(self):
-        return getattr(self, 'method', _urllib.request.Request.get_method(self))
+        return getattr(self, 'method', _urllib_request.Request.get_method(self))

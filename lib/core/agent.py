@@ -6,6 +6,7 @@ See the file 'LICENSE' for copying permission
 """
 
 import re
+from typing import Optional, Union, List, Tuple, Any
 
 from lib.core.common import Backend
 from lib.core.common import extractRegexResult
@@ -65,7 +66,7 @@ class Agent(object):
     This class defines the SQL agent methods.
     """
 
-    def payloadDirect(self, query):
+    def payloadDirect(self, query: str) -> str:
         query = self.cleanupPayload(query)
 
         if query.upper().startswith("AND "):
@@ -86,7 +87,9 @@ class Agent(object):
 
         return query
 
-    def payload(self, place=None, parameter=None, value=None, newValue=None, where=None):
+    def payload(self, place: Optional[str] = None, parameter: Optional[str] = None,
+                value: Optional[str] = None, newValue: Optional[str] = None,
+                where: Optional[int] = None) -> str:
         """
         This method replaces the affected parameter with the SQL
         injection statement to request
@@ -259,7 +262,8 @@ class Agent(object):
 
         return retVal
 
-    def prefixQuery(self, expression, prefix=None, where=None, clause=None):
+    def prefixQuery(self, expression: str, prefix: Optional[str] = None,
+                    where: Optional[int] = None, clause: Optional[List[int]] = None) -> str:
         """
         This method defines how the input expression has to be escaped
         to perform the injection depending on the injection type
@@ -307,7 +311,9 @@ class Agent(object):
 
         return query
 
-    def suffixQuery(self, expression, comment=None, suffix=None, where=None, trimEmpty=True):
+    def suffixQuery(self, expression: str, comment: Optional[str] = None,
+                    suffix: Optional[str] = None, where: Optional[int] = None,
+                    trimEmpty: bool = True) -> str:
         """
         This method appends the DBMS comment to the
         SQL injection request
@@ -348,7 +354,7 @@ class Agent(object):
 
         return re.sub(r";\W*;", ";", expression) if trimEmpty else expression
 
-    def cleanupPayload(self, payload, origValue=None):
+    def cleanupPayload(self, payload: Union[str, None], origValue: Optional[str] = None) -> Optional[str]:
         if not isinstance(payload, six.string_types):
             return
 
@@ -401,7 +407,7 @@ class Agent(object):
 
         return payload
 
-    def adjustLateValues(self, payload):
+    def adjustLateValues(self, payload: str) -> str:
         """
         Returns payload with a replaced late tags (e.g. SLEEPTIME)
         """
@@ -437,14 +443,14 @@ class Agent(object):
 
         return payload
 
-    def getComment(self, request):
+    def getComment(self, request: Any) -> str:
         """
         Returns comment form for the given request
         """
 
         return request.comment if "comment" in request else ""
 
-    def hexConvertField(self, field):
+    def hexConvertField(self, field: str) -> str:
         """
         Returns hex converted field string
         """
@@ -460,7 +466,7 @@ class Agent(object):
 
         return hexField
 
-    def nullAndCastField(self, field):
+    def nullAndCastField(self, field: str) -> str:
         """
         Take in input a field string and return its processed nulled and
         casted field string.

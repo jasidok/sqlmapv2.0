@@ -6,8 +6,6 @@ Copyright (c) 2006-2025 sqlmap developers (https://sqlmap.org)
 See the file 'LICENSE' for copying permission
 """
 
-from __future__ import print_function
-
 import contextlib
 import logging
 import os
@@ -64,10 +62,15 @@ from thirdparty.bottle.bottle import request
 from thirdparty.bottle.bottle import response
 from thirdparty.bottle.bottle import run
 from thirdparty.bottle.bottle import server_names
-from thirdparty import six
-from thirdparty.six.moves import http_client as _http_client
-from thirdparty.six.moves import input as _input
-from thirdparty.six.moves import urllib as _urllib
+
+import http.client as _http_client
+import urllib.request
+import urllib.error
+
+
+def _input(prompt=""):
+    return input(prompt)
+
 
 # Global data storage
 class DataStore(object):
@@ -733,7 +736,10 @@ def server(host=RESTAPI_DEFAULT_ADDRESS, port=RESTAPI_DEFAULT_PORT, adapter=REST
             errMsg += "List of supported adapters: %s" % ', '.join(sorted(list(server_names.keys())))
         else:
             errMsg = "Server support for adapter '%s' is not installed on this system " % adapter
-            errMsg += "(Note: you can try to install it with 'apt install python-%s' or 'pip%s install %s')" % (adapter, '3' if six.PY3 else "", adapter)
+            errMsg += "(Note: you can try to install it with 'apt install python-%s' or 'pip%s install %s')" % (adapter,
+                                                                                                                '3' if sys.version_info >= (
+                                                                                                                    3,) else "",
+                                                                                                                adapter)
         logger.critical(errMsg)
 
 def _client(url, options=None):
@@ -749,8 +755,8 @@ def _client(url, options=None):
         if DataStore.username or DataStore.password:
             headers["Authorization"] = "Basic %s" % encodeBase64("%s:%s" % (DataStore.username or "", DataStore.password or ""), binary=False)
 
-        req = _urllib.request.Request(url, data, headers)
-        response = _urllib.request.urlopen(req)
+        req = urllib.request.Request(url, data, headers)
+        response = urllib.request.urlopen(req)
         text = getText(response.read())
     except:
         if options:
@@ -779,7 +785,7 @@ def client(host=RESTAPI_DEFAULT_ADDRESS, port=RESTAPI_DEFAULT_PORT, username=Non
     try:
         _client(addr)
     except Exception as ex:
-        if not isinstance(ex, _urllib.error.HTTPError) or ex.code == _http_client.UNAUTHORIZED:
+        if not isinstance(ex, urllib.error.HTTPError) or ex.code == _http_client.UNAUTHORIZED:
             errMsg = "There has been a problem while connecting to the "
             errMsg += "REST-JSON API server at '%s' " % addr
             errMsg += "(%s)" % getSafeExString(ex)

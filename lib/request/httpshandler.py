@@ -10,15 +10,13 @@ import socket
 
 from lib.core.common import filterNone
 from lib.core.common import getSafeExString
-from lib.core.compat import LooseVersion
 from lib.core.compat import xrange
 from lib.core.data import conf
 from lib.core.data import kb
 from lib.core.data import logger
 from lib.core.exception import SqlmapConnectionException
-from lib.core.settings import PYVERSION
-from thirdparty.six.moves import http_client as _http_client
-from thirdparty.six.moves import urllib as _urllib
+import http.client as _http_client
+import urllib.request as _urllib
 
 ssl = None
 try:
@@ -115,9 +113,6 @@ class HTTPSConnection(_http_client.HTTPSConnection):
 
         if not success:
             errMsg = "can't establish SSL connection"
-            # Reference: https://docs.python.org/2/library/ssl.html
-            if LooseVersion(PYVERSION) < LooseVersion("2.7.9"):
-                errMsg += " (please retry with Python >= 2.7.9)"
 
             if kb.sslSuccess and not self.retrying:
                 self.retrying = True

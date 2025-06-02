@@ -6,6 +6,7 @@ See the file 'LICENSE' for copying permission
 """
 
 import sqlite3
+from dataclasses import dataclass
 
 from lib.core.common import cleanReplaceUnicode
 from lib.core.common import getSafeExString
@@ -31,22 +32,21 @@ class Replication(object):
         except sqlite3.OperationalError as ex:
             errMsg = "error occurred while opening a replication "
             errMsg += "file '%s' ('%s')" % (dbpath, getSafeExString(ex))
-            raise SqlmapConnectionException(errMsg)
+            raise SqlmapConnectionException(errMsg) from ex
 
-    class DataType(object):
+    @dataclass
+    class DataType:
         """
         Using this class we define auxiliary objects
         used for representing sqlite data types.
         """
-
-        def __init__(self, name):
-            self.name = name
+        name: str
 
         def __str__(self):
             return self.name
 
         def __repr__(self):
-            return "<DataType: %s>" % self
+            return f"<DataType: {self}>"
 
     class Table(object):
         """
@@ -67,7 +67,7 @@ class Replication(object):
                 except Exception as ex:
                     errMsg = "problem occurred ('%s') while initializing the sqlite database " % getSafeExString(ex, UNICODE_ENCODING)
                     errMsg += "located at '%s'" % self.parent.dbpath
-                    raise SqlmapGenericException(errMsg)
+                    raise SqlmapGenericException(errMsg) from ex
 
         def insert(self, values):
             """
@@ -90,7 +90,7 @@ class Replication(object):
                 errMsg = "problem occurred ('%s') while accessing sqlite database " % getSafeExString(ex, UNICODE_ENCODING)
                 errMsg += "located at '%s'. Please make sure that " % self.parent.dbpath
                 errMsg += "it's not used by some other program"
-                raise SqlmapGenericException(errMsg)
+                raise SqlmapGenericException(errMsg) from ex
 
         def beginTransaction(self):
             """

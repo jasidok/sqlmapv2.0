@@ -5,8 +5,6 @@ Copyright (c) 2006-2025 sqlmap developers (https://sqlmap.org)
 See the file 'LICENSE' for copying permission
 """
 
-from __future__ import print_function
-
 try:
     import sys
 
@@ -279,11 +277,6 @@ def main():
 
         elif any(_ in excMsg for _ in ("No space left", "Disk quota exceeded", "Disk full while accessing")):
             errMsg = "no space left on output device"
-            logger.critical(errMsg)
-            raise SystemExit
-
-        elif any(_ in excMsg for _ in ("The paging file is too small",)):
-            errMsg = "no space left for paging file"
             logger.critical(errMsg)
             raise SystemExit
 

@@ -5,9 +5,37 @@ Copyright (c) 2006-2025 sqlmap developers (https://sqlmap.org)
 See the file 'LICENSE' for copying permission
 """
 
-from __future__ import division
-
 import binascii
+import codecs
+import contextlib
+import copy
+import functools
+import getpass
+import hashlib
+import inspect
+import io
+import json
+import keyword
+import locale
+import logging
+import ntpath
+import os
+import platform
+import posixpath
+import random
+import re
+import socket
+import string
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+import types
+import unicodedata
+import zlib
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Set, Tuple, Union, Generator, Callable, Iterator
 import codecs
 import contextlib
 import copy
@@ -38,6 +66,7 @@ import unicodedata
 import zlib
 
 from difflib import SequenceMatcher
+from functools import lru_cache
 from math import sqrt
 from optparse import OptionValueError
 from xml.sax import parse
@@ -46,9 +75,8 @@ from xml.sax import SAXParseException
 from extra.beep.beep import beep
 from extra.cloak.cloak import decloak
 from lib.core.bigarray import BigArray
-from lib.core.compat import cmp
+
 from lib.core.compat import LooseVersion
-from lib.core.compat import round
 from lib.core.compat import xrange
 from lib.core.convert import base64pickle
 from lib.core.convert import base64unpickle
@@ -195,15 +223,35 @@ from thirdparty.clientform.clientform import ParseError
 from thirdparty.colorama.initialise import init as coloramainit
 from thirdparty.magic import magic
 from thirdparty.odict import OrderedDict
-from thirdparty.six import unichr as _unichr
-from thirdparty.six.moves import collections_abc as _collections
-from thirdparty.six.moves import configparser as _configparser
-from thirdparty.six.moves import http_client as _http_client
-from thirdparty.six.moves import input as _input
-from thirdparty.six.moves import reload_module as _reload_module
-from thirdparty.six.moves import urllib as _urllib
-from thirdparty.six.moves import zip as _zip
+import collections.abc as _collections
+import configparser as _configparser
+import http.client as _http_client
+import builtins
+import urllib.parse
+import urllib.request
+import urllib.parse as _urllib
 from thirdparty.termcolor.termcolor import colored
+
+
+def _unichr(value):
+    return chr(value)
+
+
+def _zip(*args):
+    return list(zip(*args))
+
+
+def _input(*args, **kwargs):
+    return input(*args, **kwargs)
+
+
+def _reload_module(module):
+    import importlib
+    importlib.reload(module)
+
+
+from thirdparty.termcolor.termcolor import colored
+
 
 class UnicodeRawConfigParser(_configparser.RawConfigParser):
     """
@@ -386,7 +434,7 @@ class Backend(object):
 
     @staticmethod
     def setVersion(version):
-        if isinstance(version, six.string_types):
+        if isinstance(version, str):
             kb.dbmsVersion = [version]
 
         return kb.dbmsVersion
@@ -918,6 +966,8 @@ def getAutoDirectories():
 
     return list(retVal)
 
+
+@lru_cache(maxsize=256)
 def filePathToSafeString(filePath):
     """
     Returns string representation of a given filepath safe for a single filename usage
@@ -1122,7 +1172,9 @@ def dataToOutFile(filename, data):
 
     return retVal
 
-def readInput(message, default=None, checkBatch=True, boolean=False):
+
+def readInput(message: str, default: Optional[str] = None, checkBatch: bool = True, boolean: bool = False) -> Union[
+    str, bool, None]:
     """
     Reads input from terminal
     """
@@ -1168,7 +1220,7 @@ def readInput(message, default=None, checkBatch=True, boolean=False):
             elif default:
                 options = getUnicode(default, UNICODE_ENCODING)
             else:
-                options = six.text_type()
+                options = str()
 
             dataToStdout("%s%s\n" % (message, options), forceOutput=not kb.wizardMode, bold=True)
 
@@ -1227,7 +1279,8 @@ def getTechnique():
 
     return getCurrentThreadData().technique or kb.get("technique")
 
-def randomRange(start=0, stop=1000, seed=None):
+
+def randomRange(start: int = 0, stop: int = 1000, seed: Optional[int] = None) -> int:
     """
     Returns random integer value in given range
 
@@ -1245,7 +1298,8 @@ def randomRange(start=0, stop=1000, seed=None):
 
     return int(randint(start, stop))
 
-def randomInt(length=4, seed=None):
+
+def randomInt(length: int = 4, seed: Optional[int] = None) -> int:
     """
     Returns random integer value with provided number of digits
 
@@ -1263,7 +1317,9 @@ def randomInt(length=4, seed=None):
 
     return int("".join(choice(string.digits if _ != 0 else string.digits.replace('0', '')) for _ in xrange(0, length)))
 
-def randomStr(length=4, lowercase=False, alphabet=None, seed=None):
+
+def randomStr(length: int = 4, lowercase: bool = False, alphabet: Optional[str] = None,
+              seed: Optional[int] = None) -> str:
     """
     Returns random string value with provided number of characters
 
@@ -1340,7 +1396,8 @@ def isZipFile(filename):
 
     return header == ZIP_HEADER
 
-def isDigit(value):
+
+def isDigit(value: Any) -> bool:
     """
     Checks if provided (string) value consists of digits (Note: Python's isdigit() is problematic)
 
@@ -1356,7 +1413,8 @@ def isDigit(value):
 
     return re.search(r"\A[0-9]+\Z", value or "") is not None
 
-def checkFile(filename, raiseOnError=True):
+
+def checkFile(filename: Optional[str], raiseOnError: bool = True) -> bool:
     """
     Checks for file existence and readability
 
@@ -1499,45 +1557,51 @@ def cleanReplaceUnicode(value):
 
     return applyFunctionRecursively(value, clean)
 
-def setPaths(rootPath):
+
+def setPaths(rootPath: str) -> None:
     """
     Sets absolute paths for project directories and files
     """
 
-    paths.SQLMAP_ROOT_PATH = rootPath
+    root = Path(rootPath)
+    paths.SQLMAP_ROOT_PATH = str(root)
 
     # sqlmap paths
-    paths.SQLMAP_DATA_PATH = os.path.join(paths.SQLMAP_ROOT_PATH, "data")
-    paths.SQLMAP_EXTRAS_PATH = os.path.join(paths.SQLMAP_ROOT_PATH, "extra")
-    paths.SQLMAP_SETTINGS_PATH = os.path.join(paths.SQLMAP_ROOT_PATH, "lib", "core", "settings.py")
-    paths.SQLMAP_TAMPER_PATH = os.path.join(paths.SQLMAP_ROOT_PATH, "tamper")
+    paths.SQLMAP_DATA_PATH = str(root / "data")
+    paths.SQLMAP_EXTRAS_PATH = str(root / "extra")
+    paths.SQLMAP_SETTINGS_PATH = str(root / "lib" / "core" / "settings.py")
+    paths.SQLMAP_TAMPER_PATH = str(root / "tamper")
 
-    paths.SQLMAP_PROCS_PATH = os.path.join(paths.SQLMAP_DATA_PATH, "procs")
-    paths.SQLMAP_SHELL_PATH = os.path.join(paths.SQLMAP_DATA_PATH, "shell")
-    paths.SQLMAP_TXT_PATH = os.path.join(paths.SQLMAP_DATA_PATH, "txt")
-    paths.SQLMAP_UDF_PATH = os.path.join(paths.SQLMAP_DATA_PATH, "udf")
-    paths.SQLMAP_XML_PATH = os.path.join(paths.SQLMAP_DATA_PATH, "xml")
-    paths.SQLMAP_XML_BANNER_PATH = os.path.join(paths.SQLMAP_XML_PATH, "banner")
-    paths.SQLMAP_XML_PAYLOADS_PATH = os.path.join(paths.SQLMAP_XML_PATH, "payloads")
+    data_path = Path(paths.SQLMAP_DATA_PATH)
+    paths.SQLMAP_PROCS_PATH = str(data_path / "procs")
+    paths.SQLMAP_SHELL_PATH = str(data_path / "shell")
+    paths.SQLMAP_TXT_PATH = str(data_path / "txt")
+    paths.SQLMAP_UDF_PATH = str(data_path / "udf")
+    paths.SQLMAP_XML_PATH = str(data_path / "xml")
+    paths.SQLMAP_XML_BANNER_PATH = str(Path(paths.SQLMAP_XML_PATH) / "banner")
+    paths.SQLMAP_XML_PAYLOADS_PATH = str(Path(paths.SQLMAP_XML_PATH) / "payloads")
 
     # sqlmap files
-    paths.COMMON_COLUMNS = os.path.join(paths.SQLMAP_TXT_PATH, "common-columns.txt")
-    paths.COMMON_FILES = os.path.join(paths.SQLMAP_TXT_PATH, "common-files.txt")
-    paths.COMMON_TABLES = os.path.join(paths.SQLMAP_TXT_PATH, "common-tables.txt")
-    paths.COMMON_OUTPUTS = os.path.join(paths.SQLMAP_TXT_PATH, 'common-outputs.txt')
-    paths.DIGEST_FILE = os.path.join(paths.SQLMAP_TXT_PATH, "sha256sums.txt")
-    paths.SQL_KEYWORDS = os.path.join(paths.SQLMAP_TXT_PATH, "keywords.txt")
-    paths.SMALL_DICT = os.path.join(paths.SQLMAP_TXT_PATH, "smalldict.txt")
-    paths.USER_AGENTS = os.path.join(paths.SQLMAP_TXT_PATH, "user-agents.txt")
-    paths.WORDLIST = os.path.join(paths.SQLMAP_TXT_PATH, "wordlist.tx_")
-    paths.ERRORS_XML = os.path.join(paths.SQLMAP_XML_PATH, "errors.xml")
-    paths.BOUNDARIES_XML = os.path.join(paths.SQLMAP_XML_PATH, "boundaries.xml")
-    paths.QUERIES_XML = os.path.join(paths.SQLMAP_XML_PATH, "queries.xml")
-    paths.GENERIC_XML = os.path.join(paths.SQLMAP_XML_BANNER_PATH, "generic.xml")
-    paths.MSSQL_XML = os.path.join(paths.SQLMAP_XML_BANNER_PATH, "mssql.xml")
-    paths.MYSQL_XML = os.path.join(paths.SQLMAP_XML_BANNER_PATH, "mysql.xml")
-    paths.ORACLE_XML = os.path.join(paths.SQLMAP_XML_BANNER_PATH, "oracle.xml")
-    paths.PGSQL_XML = os.path.join(paths.SQLMAP_XML_BANNER_PATH, "postgresql.xml")
+    txt_path = Path(paths.SQLMAP_TXT_PATH)
+    paths.COMMON_COLUMNS = str(txt_path / "common-columns.txt")
+    paths.COMMON_FILES = str(txt_path / "common-files.txt")
+    paths.COMMON_TABLES = str(txt_path / "common-tables.txt")
+    paths.COMMON_OUTPUTS = str(txt_path / 'common-outputs.txt')
+    paths.DIGEST_FILE = str(txt_path / "sha256sums.txt")
+    paths.SQL_KEYWORDS = str(txt_path / "keywords.txt")
+    paths.SMALL_DICT = str(txt_path / "smalldict.txt")
+    paths.USER_AGENTS = str(txt_path / "user-agents.txt")
+    paths.WORDLIST = str(txt_path / "wordlist.tx_")
+
+    xml_path = Path(paths.SQLMAP_XML_PATH)
+    paths.ERRORS_XML = str(xml_path / "errors.xml")
+    paths.BOUNDARIES_XML = str(xml_path / "boundaries.xml")
+    paths.QUERIES_XML = str(xml_path / "queries.xml")
+    paths.GENERIC_XML = str(Path(paths.SQLMAP_XML_BANNER_PATH) / "generic.xml")
+    paths.MSSQL_XML = str(Path(paths.SQLMAP_XML_BANNER_PATH) / "mssql.xml")
+    paths.MYSQL_XML = str(Path(paths.SQLMAP_XML_BANNER_PATH) / "mysql.xml")
+    paths.ORACLE_XML = str(Path(paths.SQLMAP_XML_BANNER_PATH) / "oracle.xml")
+    paths.PGSQL_XML = str(Path(paths.SQLMAP_XML_BANNER_PATH) / "postgresql.xml")
 
     for path in paths.values():
         if any(path.endswith(_) for _ in (".txt", ".xml", ".tx_")):
@@ -1741,7 +1805,7 @@ def parseTargetUrl():
         conf.url = conf.url.replace('?', URI_QUESTION_MARKER)
 
     try:
-        urlSplit = _urllib.parse.urlsplit(conf.url)
+        urlSplit = urllib.parse.urlsplit(conf.url)
     except ValueError as ex:
         errMsg = "invalid URL '%s' has been given ('%s'). " % (conf.url, getSafeExString(ex))
         errMsg += "Please be sure that you don't have any leftover characters (e.g. '[' or ']') "
@@ -2137,7 +2201,7 @@ def safeFilepathEncode(filepath):
 
     retVal = filepath
 
-    if filepath and six.PY2 and isinstance(filepath, six.text_type):
+    if filepath and False and isinstance(filepath, six.text_type):
         retVal = getBytes(filepath, sys.getfilesystemencoding() or UNICODE_ENCODING)
 
     return retVal
@@ -2285,7 +2349,7 @@ def showStaticWords(firstPage, secondPage, minLength=3):
 
     if commonWords:
         commonWords = [_ for _ in commonWords if len(_) >= minLength]
-        commonWords.sort(key=functools.cmp_to_key(lambda a, b: cmp(a.lower(), b.lower())))
+        commonWords.sort(key=lambda x: x.lower())
 
         for word in commonWords:
             infoMsg += "'%s', " % word
@@ -2555,7 +2619,9 @@ def initCommonOutputs():
                     if line not in kb.commonOutputs[key]:
                         kb.commonOutputs[key].add(line)
 
-def getFileItems(filename, commentPrefix='#', unicoded=True, lowercase=False, unique=False):
+
+def getFileItems(filename: str, commentPrefix: str = '#', unicoded: bool = True, lowercase: bool = False,
+                 unique: bool = False) -> List[str]:
     """
     Returns newline delimited items contained inside file
 
@@ -2962,7 +3028,7 @@ def urldecode(value, encoding=None, unsafe="%%?&=;+%s" % CUSTOM_INJECTION_MARK_C
         value = getUnicode(value)
 
         if convall:
-            result = _urllib.parse.unquote_plus(value) if spaceplus else _urllib.parse.unquote(value)
+            result = urllib.parse.unquote_plus(value) if spaceplus else urllib.parse.unquote(value)
         else:
             result = value
             charset = set(string.printable) - set(unsafe)
@@ -2972,7 +3038,8 @@ def urldecode(value, encoding=None, unsafe="%%?&=;+%s" % CUSTOM_INJECTION_MARK_C
                 return char if char in charset else match.group(0)
 
             if spaceplus:
-                result = result.replace('+', ' ')  # plus sign has a special meaning in URL encoded data (hence the usage of _urllib.parse.unquote_plus in convall case)
+                result = result.replace('+',
+                                        ' ')  # plus sign has a special meaning in URL encoded data (hence the usage of urllib.parse.unquote_plus in convall case)
 
             result = re.sub(r"%([0-9a-fA-F]{2})", _, result or "")
 
@@ -3020,7 +3087,7 @@ def urlencode(value, safe="%&=-_", convall=False, limit=False, spaceplus=False):
             value = re.sub(r"%(?![0-9a-fA-F]{2})", "%25", value)
 
         while True:
-            result = _urllib.parse.quote(getBytes(value), safe)
+            result = urllib.parse.quote(getBytes(value), safe)
 
             if limit and len(result) > URLENCODE_CHAR_LIMIT:
                 if count >= len(URLENCODE_FAILSAFE_CHARS):
@@ -3035,7 +3102,7 @@ def urlencode(value, safe="%&=-_", convall=False, limit=False, spaceplus=False):
                 break
 
         if spaceplus:
-            result = result.replace(_urllib.parse.quote(' '), '+')
+            result = result.replace(urllib.parse.quote(' '), '+')
 
         result = result.replace(DOLLAR_MARKER, '$')
 
@@ -3051,7 +3118,7 @@ def runningAsAdmin():
     if PLATFORM in ("posix", "mac"):
         _ = os.geteuid()
 
-        isAdmin = isinstance(_, (float, six.integer_types)) and _ == 0
+        isAdmin = isinstance(_, (float, int)) and _ == 0
     elif IS_WIN:
         import ctypes
 
@@ -3141,7 +3208,7 @@ def extractRegexResult(regex, content, flags=0):
     retVal = None
 
     if regex and content and "?P<result>" in regex:
-        if isinstance(content, six.binary_type) and isinstance(regex, six.text_type):
+        if isinstance(content, bytes) and isinstance(regex, six.text_type):
             regex = getBytes(regex)
 
         match = re.search(regex, content, flags)
@@ -3728,7 +3795,8 @@ def joinValue(value, delimiter=','):
 
     return retVal
 
-def isListLike(value):
+
+def isListLike(value: Any) -> bool:
     """
     Returns True if the given value is a list-like instance
 
@@ -3801,7 +3869,9 @@ def showHttpErrorCodes():
             msg += "could mean that some kind of protection is involved (e.g. WAF)"
             logger.debug(msg)
 
-def openFile(filename, mode='r', encoding=UNICODE_ENCODING, errors="reversible", buffering=1):  # "buffering=1" means line buffered (Reference: http://stackoverflow.com/a/3168436)
+
+def openFile(filename: str, mode: str = 'r', encoding: Optional[str] = UNICODE_ENCODING, errors: str = "reversible",
+             buffering: int = 1):  # "buffering=1" means line buffered (Reference: http://stackoverflow.com/a/3168436)
     """
     Returns file handle of a given filename
 
@@ -3920,10 +3990,12 @@ def getLatestRevision():
     """
 
     retVal = None
-    req = _urllib.request.Request(url="https://raw.githubusercontent.com/sqlmapproject/sqlmap/master/lib/core/settings.py", headers={HTTP_HEADER.USER_AGENT: fetchRandomAgent()})
+    req = urllib.request.Request(
+        url="https://raw.githubusercontent.com/sqlmapproject/sqlmap/master/lib/core/settings.py",
+        headers={HTTP_HEADER.USER_AGENT: fetchRandomAgent()})
 
     try:
-        content = getUnicode(_urllib.request.urlopen(req).read())
+        content = getUnicode(urllib.request.urlopen(req).read())
         retVal = extractRegexResult(r"VERSION\s*=\s*[\"'](?P<result>[\d.]+)", content)
     except:
         pass
@@ -3988,10 +4060,12 @@ def createGithubIssue(errMsg, excMsg):
         _excMsg = None
         errMsg = errMsg[errMsg.find("\n"):]
 
-        req = _urllib.request.Request(url="https://api.github.com/search/issues?q=%s" % _urllib.parse.quote("repo:sqlmapproject/sqlmap Unhandled exception (#%s)" % key), headers={HTTP_HEADER.USER_AGENT: fetchRandomAgent()})
+        req = urllib.request.Request(url="https://api.github.com/search/issues?q=%s" % urllib.parse.quote(
+            "repo:sqlmapproject/sqlmap Unhandled exception (#%s)" % key),
+                                     headers={HTTP_HEADER.USER_AGENT: fetchRandomAgent()})
 
         try:
-            content = _urllib.request.urlopen(req).read()
+            content = urllib.request.urlopen(req).read()
             _ = json.loads(content)
             duplicate = _["total_count"] > 0
             closed = duplicate and _["items"][0]["state"] == "closed"
@@ -4007,10 +4081,13 @@ def createGithubIssue(errMsg, excMsg):
 
         data = {"title": "Unhandled exception (#%s)" % key, "body": "```%s\n```\n```\n%s```" % (errMsg, excMsg)}
         token = getText(zlib.decompress(decodeBase64(GITHUB_REPORT_OAUTH_TOKEN[::-1], binary=True))[0::2][::-1])
-        req = _urllib.request.Request(url="https://api.github.com/repos/sqlmapproject/sqlmap/issues", data=getBytes(json.dumps(data)), headers={HTTP_HEADER.AUTHORIZATION: "token %s" % token, HTTP_HEADER.USER_AGENT: fetchRandomAgent()})
+        req = urllib.request.Request(url="https://api.github.com/repos/sqlmapproject/sqlmap/issues",
+                                     data=getBytes(json.dumps(data)),
+                                     headers={HTTP_HEADER.AUTHORIZATION: "token %s" % token,
+                                              HTTP_HEADER.USER_AGENT: fetchRandomAgent()})
 
         try:
-            content = getText(_urllib.request.urlopen(req).read())
+            content = getText(urllib.request.urlopen(req).read())
         except Exception as ex:
             content = None
             _excMsg = getSafeExString(ex)
@@ -4336,7 +4413,8 @@ def unsafeSQLIdentificatorNaming(name):
 
     return retVal
 
-def isNoneValue(value):
+
+def isNoneValue(value: Any) -> bool:
     """
     Returns whether the value is unusable (None or '')
 
@@ -4621,7 +4699,7 @@ def asciifyUrl(url, forceQuote=False):
     if port:
         netloc += ':' + str(port)
 
-    return getText(_urllib.parse.urlunsplit([parts.scheme, netloc, path, query, parts.fragment]) or url)
+    return getText(urllib.parse.urlunsplit([parts.scheme, netloc, path, query, parts.fragment]) or url)
 
 def isAdminFromPrivileges(privileges):
     """
@@ -4751,7 +4829,7 @@ def findPageForms(content, url, raiseException=False, addToTargets=False):
                 retVal.add(target)
 
     for match in re.finditer(r"\.post\(['\"]([^'\"]*)['\"],\s*\{([^}]*)\}", content):
-        url = _urllib.parse.urljoin(url, htmlUnescape(match.group(1)))
+        url = urllib.parse.urljoin(url, htmlUnescape(match.group(1)))
         data = ""
 
         for name, value in re.findall(r"['\"]?(\w+)['\"]?\s*:\s*(['\"][^'\"]+)?", match.group(2)):
@@ -4815,7 +4893,7 @@ def getHostHeader(url):
     retVal = url
 
     if url:
-        retVal = _urllib.parse.urlparse(url).netloc
+        retVal = urllib.parse.urlparse(url).netloc
 
         if re.search(r"http(s)?://\[.+\]", url, re.I):
             retVal = extractRegexResult(r"http(s)?://\[(?P<result>.+)\]", url)

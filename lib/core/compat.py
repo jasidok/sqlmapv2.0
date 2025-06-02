@@ -5,15 +5,11 @@ Copyright (c) 2006-2025 sqlmap developers (https://sqlmap.org)
 See the file 'LICENSE' for copying permission
 """
 
-from __future__ import division
-
 import binascii
-import functools
 import math
 import os
 import random
 import re
-import sys
 import time
 import uuid
 
@@ -33,7 +29,7 @@ class WichmannHill(random.Random):
         If a is not None or an int or long, hash(a) is used instead.
 
         If a is an int or long, a is used directly.  Distinct values between
-        0 and 27814431486575L inclusive are guaranteed to yield distinct
+        0 and 27814431486575 inclusive are guaranteed to yield distinct
         internal states (this guarantee is specific to the default
         Wichmann-Hill generator).
         """
@@ -185,24 +181,9 @@ def patchHeaders(headers):
 
             headers = _(headers)
 
-        headers.headers = ["%s: %s\r\n" % (header, headers[header]) for header in headers]
+        headers.headers = [f"{header}: {headers[header]}\r\n" for header in headers]
 
     return headers
-
-def cmp(a, b):
-    """
-    >>> cmp("a", "b")
-    -1
-    >>> cmp(2, 1)
-    1
-    """
-
-    if a < b:
-        return -1
-    elif a > b:
-        return 1
-    else:
-        return 0
 
 # Reference: https://github.com/urllib3/urllib3/blob/master/src/urllib3/filepost.py
 def choose_boundary():
@@ -211,72 +192,11 @@ def choose_boundary():
     True
     """
 
-    retval = ""
+    return uuid.uuid4().hex
 
-    try:
-        retval = uuid.uuid4().hex
-    except AttributeError:
-        retval = "".join(random.sample("0123456789abcdef", 1)[0] for _ in xrange(32))
-
-    return retval
-
-# Reference: http://python3porting.com/differences.html
-def round(x, d=0):
-    """
-    >>> round(2.0)
-    2.0
-    >>> round(2.5)
-    3.0
-    """
-
-    p = 10 ** d
-    if x > 0:
-        return float(math.floor((x * p) + 0.5)) / p
-    else:
-        return float(math.ceil((x * p) - 0.5)) / p
-
-# Reference: https://code.activestate.com/recipes/576653-convert-a-cmp-function-to-a-key-function/
-def cmp_to_key(mycmp):
-    """Convert a cmp= function into a key= function"""
-    class K(object):
-        __slots__ = ['obj']
-
-        def __init__(self, obj, *args):
-            self.obj = obj
-
-        def __lt__(self, other):
-            return mycmp(self.obj, other.obj) < 0
-
-        def __gt__(self, other):
-            return mycmp(self.obj, other.obj) > 0
-
-        def __eq__(self, other):
-            return mycmp(self.obj, other.obj) == 0
-
-        def __le__(self, other):
-            return mycmp(self.obj, other.obj) <= 0
-
-        def __ge__(self, other):
-            return mycmp(self.obj, other.obj) >= 0
-
-        def __ne__(self, other):
-            return mycmp(self.obj, other.obj) != 0
-
-        def __hash__(self):
-            raise TypeError('hash not implemented')
-
-    return K
-
-# Note: patch for Python 2.6
-if not hasattr(functools, "cmp_to_key"):
-    functools.cmp_to_key = cmp_to_key
-
-if sys.version_info >= (3, 0):
-    xrange = range
-    buffer = memoryview
-else:
-    xrange = xrange
-    buffer = buffer
+# Python 3.11+ native aliases
+xrange = range
+buffer = memoryview
 
 def LooseVersion(version):
     """

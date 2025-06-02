@@ -23,7 +23,7 @@ from lib.core.common import dataToStdout
 from lib.core.common import randomInt
 from lib.core.common import randomStr
 from lib.core.common import shellExec
-from lib.core.compat import round
+from lib.core.compat import xrange
 from lib.core.convert import encodeBase64
 from lib.core.data import kb
 from lib.core.data import logger

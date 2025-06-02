@@ -5,7 +5,7 @@ Copyright (c) 2006-2025 sqlmap developers (https://sqlmap.org)
 See the file 'LICENSE' for copying permission
 """
 
-from __future__ import print_function
+
 
 try:
     from crypt import crypt
@@ -87,7 +87,7 @@ from lib.core.settings import UNICODE_ENCODING
 from lib.core.wordlist import Wordlist
 from thirdparty import six
 from thirdparty.colorama.initialise import init as coloramainit
-from thirdparty.six.moves import queue as _queue
+import queue as _queue
 
 def mysql_passwd(password, uppercase=True):
     """

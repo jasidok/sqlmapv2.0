@@ -5,8 +5,6 @@ Copyright (c) 2006-2025 sqlmap developers (https://sqlmap.org)
 See the file 'LICENSE' for copying permission
 """
 
-from __future__ import division
-
 import re
 
 from lib.core.common import extractRegexResult
@@ -34,7 +32,6 @@ from lib.core.settings import REFLECTED_VALUE_MARKER
 from lib.core.settings import UPPER_RATIO_BOUND
 from lib.core.settings import URI_HTTP_HEADER
 from lib.core.threads import getCurrentThreadData
-from thirdparty import six
 
 def comparison(page, headers, code=None, getRatioValue=False, pageLength=None):
     try:
@@ -125,9 +122,9 @@ def _comparison(page, headers, code, getRatioValue, pageLength):
     else:
         # Preventing "Unicode equal comparison failed to convert both arguments to Unicode"
         # (e.g. if one page is PDF and the other is HTML)
-        if isinstance(seqMatcher.a, six.binary_type) and isinstance(page, six.text_type):
+        if isinstance(seqMatcher.a, bytes) and isinstance(page, str):
             page = getBytes(page, kb.pageEncoding or DEFAULT_PAGE_ENCODING, "ignore")
-        elif isinstance(seqMatcher.a, six.text_type) and isinstance(page, six.binary_type):
+        elif isinstance(seqMatcher.a, str) and isinstance(page, bytes):
             seqMatcher.set_seq1(getBytes(seqMatcher.a, kb.pageEncoding or DEFAULT_PAGE_ENCODING, "ignore"))
 
         if any(_ is None for _ in (page, seqMatcher.a)):
@@ -154,19 +151,19 @@ def _comparison(page, headers, code, getRatioValue, pageLength):
             if seq1 is None or seq2 is None:
                 return None
 
-            if isinstance(seq1, six.binary_type):
+            if isinstance(seq1, bytes):
                 seq1 = seq1.replace(REFLECTED_VALUE_MARKER.encode(), b"")
-            elif isinstance(seq1, six.text_type):
+            elif isinstance(seq1, str):
                 seq1 = seq1.replace(REFLECTED_VALUE_MARKER, "")
 
-            if isinstance(seq2, six.binary_type):
+            if isinstance(seq2, bytes):
                 seq2 = seq2.replace(REFLECTED_VALUE_MARKER.encode(), b"")
-            elif isinstance(seq2, six.text_type):
+            elif isinstance(seq2, str):
                 seq2 = seq2.replace(REFLECTED_VALUE_MARKER, "")
 
             if kb.heavilyDynamic:
-                seq1 = seq1.split("\n" if isinstance(seq1, six.text_type) else b"\n")
-                seq2 = seq2.split("\n" if isinstance(seq2, six.text_type) else b"\n")
+                seq1 = seq1.split("\n" if isinstance(seq1, str) else b"\n")
+                seq2 = seq2.split("\n" if isinstance(seq2, str) else b"\n")
 
                 key = None
             else:

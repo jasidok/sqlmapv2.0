@@ -54,12 +54,10 @@ from lib.core.settings import UNICODE_ENCODING
 from lib.core.settings import VIEWSTATE_REGEX
 from lib.parse.headers import headersParser
 from lib.parse.html import htmlParser
-from thirdparty import six
 from thirdparty.chardet import detect
 from thirdparty.identywaf import identYwaf
 from thirdparty.odict import OrderedDict
-from thirdparty.six import unichr as _unichr
-from thirdparty.six.moves import http_client as _http_client
+from http import client as _http_client
 
 @lockedmethod
 def forgeHeaders(items=None, base=None):
@@ -167,7 +165,7 @@ def checkCharEncoding(encoding, warn=True):
     'utf8'
     """
 
-    if isinstance(encoding, six.binary_type):
+    if isinstance(encoding, bytes):
         encoding = getUnicode(encoding)
 
     if isListLike(encoding):
@@ -240,7 +238,7 @@ def checkCharEncoding(encoding, warn=True):
 
     if encoding:
         try:
-            six.text_type(getBytes(randomStr()), encoding)
+            str(getBytes(randomStr()), encoding)
         except:
             if warn:
                 warnMsg = "invalid web page charset '%s'" % encoding
@@ -320,7 +318,9 @@ def decodePage(page, contentEncoding, contentType, percentDecode=True):
 
         metaCharset = checkCharEncoding(extractRegexResult(META_CHARSET_REGEX, page))
 
-        if (any((httpCharset, metaCharset)) and (not all((httpCharset, metaCharset)) or isinstance(page, six.binary_type) and all(_ in PRINTABLE_BYTES for _ in page))) or (httpCharset == metaCharset and all((httpCharset, metaCharset))):
+        if (any((httpCharset, metaCharset)) and (not all((httpCharset, metaCharset)) or isinstance(page, bytes) and all(
+                _ in PRINTABLE_BYTES for _ in page))) or (
+                httpCharset == metaCharset and all((httpCharset, metaCharset))):
             kb.pageEncoding = httpCharset or metaCharset  # Reference: http://bytes.com/topic/html-css/answers/154758-http-equiv-vs-true-header-has-precedence
             debugMsg = "declared web page charset '%s'" % kb.pageEncoding
             singleTimeLogMessage(debugMsg, logging.DEBUG, debugMsg)
@@ -330,12 +330,13 @@ def decodePage(page, contentEncoding, contentType, percentDecode=True):
         kb.pageEncoding = conf.encoding
 
     # can't do for all responses because we need to support binary files too
-    if isinstance(page, six.binary_type) and "text/" in contentType:
+    if isinstance(page, bytes) and "text/" in contentType:
         if not kb.disableHtmlDecoding:
             # e.g. &#x9;&#195;&#235;&#224;&#226;&#224;
             if b"&#" in page:
                 page = re.sub(b"&#x([0-9a-f]{1,2});", lambda _: decodeHex(_.group(1) if len(_.group(1)) == 2 else b"0%s" % _.group(1)), page)
-                page = re.sub(b"&#(\\d{1,3});", lambda _: six.int2byte(int(_.group(1))) if int(_.group(1)) < 256 else _.group(0), page)
+                page = re.sub(b"&#(\\d{1,3});",
+                              lambda _: bytes([int(_.group(1))]) if int(_.group(1)) < 256 else _.group(0), page)
 
             # e.g. %20%28%29
             if percentDecode:
@@ -344,7 +345,8 @@ def decodePage(page, contentEncoding, contentType, percentDecode=True):
                     page = re.sub(b"%([0-9A-F]{2})", lambda _: decodeHex(_.group(1)), page)     # Note: %DeepSee_SQL in CACHE
 
             # e.g. &amp;
-            page = re.sub(b"&([^;]+);", lambda _: six.int2byte(HTML_ENTITIES[getText(_.group(1))]) if HTML_ENTITIES.get(getText(_.group(1)), 256) < 256 else _.group(0), page)
+            page = re.sub(b"&([^;]+);", lambda _: bytes([HTML_ENTITIES[getText(_.group(1))]]) if HTML_ENTITIES.get(
+                getText(_.group(1)), 256) < 256 else _.group(0), page)
 
             kb.pageEncoding = kb.pageEncoding or checkCharEncoding(getHeuristicCharEncoding(page))
 
@@ -360,14 +362,16 @@ def decodePage(page, contentEncoding, contentType, percentDecode=True):
                 def _(match):
                     retVal = match.group(0)
                     try:
-                        retVal = _unichr(int(match.group(1)))
+                        retVal = chr(int(match.group(1)))
                     except (ValueError, OverflowError):
                         pass
                     return retVal
                 page = re.sub(r"&#(\d+);", _, page)
 
             # e.g. &zeta;
-            page = re.sub(r"&([^;]+);", lambda _: _unichr(HTML_ENTITIES[_.group(1)]) if HTML_ENTITIES.get(_.group(1), 0) > 255 else _.group(0), page)
+            page = re.sub(r"&([^;]+);", lambda _: chr(HTML_ENTITIES[_.group(1)]) if HTML_ENTITIES.get(_.group(1),
+                                                                                                      0) > 255 else _.group(
+                0), page)
         else:
             page = getUnicode(page, kb.pageEncoding)
 

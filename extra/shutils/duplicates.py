@@ -5,8 +5,6 @@
 
 # Removes duplicate entries in wordlist like files
 
-from __future__ import print_function
-
 import sys
 
 if __name__ == "__main__":

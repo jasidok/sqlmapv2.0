@@ -7,8 +7,6 @@ Copyright (c) 2006-2025 sqlmap developers (https://sqlmap.org)
 See the file 'LICENSE' for copying permission
 """
 
-from __future__ import print_function
-
 import base64
 import json
 import re
@@ -21,24 +19,14 @@ PY3 = sys.version_info >= (3, 0)
 UNICODE_ENCODING = "utf-8"
 DEBUG = False
 
-if PY3:
-    from http.client import INTERNAL_SERVER_ERROR
-    from http.client import NOT_FOUND
-    from http.client import OK
-    from http.server import BaseHTTPRequestHandler
-    from http.server import HTTPServer
-    from socketserver import ThreadingMixIn
-    from urllib.parse import parse_qs
-    from urllib.parse import unquote_plus
-else:
-    from BaseHTTPServer import BaseHTTPRequestHandler
-    from BaseHTTPServer import HTTPServer
-    from httplib import INTERNAL_SERVER_ERROR
-    from httplib import NOT_FOUND
-    from httplib import OK
-    from SocketServer import ThreadingMixIn
-    from urlparse import parse_qs
-    from urllib import unquote_plus
+from http.client import INTERNAL_SERVER_ERROR
+from http.client import NOT_FOUND
+from http.client import OK
+from http.server import BaseHTTPRequestHandler
+from http.server import HTTPServer
+from socketserver import ThreadingMixIn
+from urllib.parse import parse_qs
+from urllib.parse import unquote_plus
 
 SCHEMA = """
     CREATE TABLE users (

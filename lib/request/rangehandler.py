@@ -6,9 +6,11 @@ See the file 'LICENSE' for copying permission
 """
 
 from lib.core.exception import SqlmapConnectionException
-from thirdparty.six.moves import urllib as _urllib
+from urllib import request as _urllib_request
+from urllib import response as _urllib_response
 
-class HTTPRangeHandler(_urllib.request.BaseHandler):
+
+class HTTPRangeHandler(_urllib_request.BaseHandler):
     """
     Handler that enables HTTP Range headers.
 
@@ -17,7 +19,7 @@ class HTTPRangeHandler(_urllib.request.BaseHandler):
 
     def http_error_206(self, req, fp, code, msg, hdrs):
         # 206 Partial Content Response
-        r = _urllib.response.addinfourl(fp, hdrs, req.get_full_url())
+        r = _urllib_response.addinfourl(fp, hdrs, req.get_full_url())
         r.code = code
         r.msg = msg
         return r

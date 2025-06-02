@@ -5,8 +5,6 @@ Copyright (c) 2006-2025 sqlmap developers (https://sqlmap.org)
 See the file 'LICENSE' for copying permission
 """
 
-from __future__ import division
-
 import codecs
 import functools
 import glob
@@ -57,8 +55,6 @@ from lib.core.common import setOptimize
 from lib.core.common import setPaths
 from lib.core.common import singleTimeWarnMessage
 from lib.core.common import urldecode
-from lib.core.compat import cmp
-from lib.core.compat import round
 from lib.core.compat import xrange
 from lib.core.convert import getUnicode
 from lib.core.data import conf
@@ -153,18 +149,19 @@ from lib.utils.search import search
 from thirdparty import six
 from thirdparty.keepalive import keepalive
 from thirdparty.multipart import multipartpost
-from thirdparty.six.moves import collections_abc as _collections
-from thirdparty.six.moves import http_client as _http_client
-from thirdparty.six.moves import http_cookiejar as _http_cookiejar
-from thirdparty.six.moves import urllib as _urllib
+import collections.abc as _collections
+import http.client as _http_client
+import http.cookiejar as _http_cookiejar
+import urllib.parse
+import urllib.request
 from thirdparty.socks import socks
 from xml.etree.ElementTree import ElementTree
 
-authHandler = _urllib.request.BaseHandler()
+authHandler = urllib.request.BaseHandler()
 chunkedHandler = ChunkedHandler()
 httpsHandler = HTTPSHandler()
 keepAliveHandler = keepalive.HTTPHandler()
-proxyHandler = _urllib.request.ProxyHandler()
+proxyHandler = urllib.request.ProxyHandler()
 redirectHandler = SmartRedirectHandler()
 rangeHandler = HTTPRangeHandler()
 multipartPostHandler = multipartpost.MultipartPostHandler()
@@ -858,7 +855,7 @@ def _setTamperingFunctions():
             logger.warning(warnMsg)
 
         if resolve_priorities and priorities:
-            priorities.sort(key=functools.cmp_to_key(lambda a, b: cmp(a[0], b[0])), reverse=True)
+            priorities.sort(key=lambda x: x[0], reverse=True)
             kb.tamperFunctions = []
 
             for _, function in priorities:
@@ -928,7 +925,7 @@ def _setPreprocessFunctions():
                 raise SqlmapGenericException(errMsg)
             else:
                 try:
-                    function(_urllib.request.Request("http://localhost"))
+                    function(urllib.request.Request("http://localhost"))
                 except Exception as ex:
                     tbMsg = traceback.format_exc()
 
@@ -1123,7 +1120,7 @@ def _setHTTPHandlers():
             logger.debug(debugMsg)
 
             try:
-                _ = _urllib.parse.urlsplit(conf.proxy)
+                _ = urllib.parse.urlsplit(conf.proxy)
             except Exception as ex:
                 errMsg = "invalid proxy address '%s' ('%s')" % (conf.proxy, getSafeExString(ex))
                 raise SqlmapSyntaxException(errMsg)
@@ -1196,7 +1193,7 @@ def _setHTTPHandlers():
                 conf.cj = _http_cookiejar.MozillaCookieJar()
                 resetCookieJar(conf.cj)
 
-            handlers.append(_urllib.request.HTTPCookieProcessor(conf.cj))
+            handlers.append(urllib.request.HTTPCookieProcessor(conf.cj))
 
         # Reference: http://www.w3.org/Protocols/rfc2616/rfc2616-sec8.html
         if conf.keepAlive:
@@ -1212,9 +1209,9 @@ def _setHTTPHandlers():
             else:
                 handlers.append(keepAliveHandler)
 
-        opener = _urllib.request.build_opener(*handlers)
+        opener = urllib.request.build_opener(*handlers)
         opener.addheaders = []  # Note: clearing default "User-Agent: Python-urllib/X.Y"
-        _urllib.request.install_opener(opener)
+        urllib.request.install_opener(opener)
 
 def _setSafeVisit():
     """
@@ -1246,7 +1243,7 @@ def _setSafeVisit():
                             if value.endswith(":443"):
                                 scheme = "https"
                             value = "%s://%s" % (scheme, value)
-                        kb.safeReq.url = _urllib.parse.urljoin(value, kb.safeReq.url)
+                        kb.safeReq.url = urllib.parse.urljoin(value, kb.safeReq.url)
                 else:
                     break
 
@@ -1372,7 +1369,7 @@ def _setHTTPAuthentication():
         conf.authUsername = aCredRegExp.group(1)
         conf.authPassword = aCredRegExp.group(2)
 
-        kb.passwordMgr = _urllib.request.HTTPPasswordMgrWithDefaultRealm()
+        kb.passwordMgr = urllib.request.HTTPPasswordMgrWithDefaultRealm()
 
         _setAuthCred()
 
@@ -1380,7 +1377,7 @@ def _setHTTPAuthentication():
             authHandler = SmartHTTPBasicAuthHandler(kb.passwordMgr)
 
         elif authType == AUTH_TYPE.DIGEST:
-            authHandler = _urllib.request.HTTPDigestAuthHandler(kb.passwordMgr)
+            authHandler = urllib.request.HTTPDigestAuthHandler(kb.passwordMgr)
 
         elif authType == AUTH_TYPE.NTLM:
             try:
@@ -1530,7 +1527,7 @@ def _setHostname():
 
     if conf.url:
         try:
-            conf.hostname = _urllib.parse.urlsplit(conf.url).netloc.split(':')[0]
+            conf.hostname = urllib.parse.urlsplit(conf.url).netloc.split(':')[0]
         except ValueError as ex:
             errMsg = "problem occurred while "
             errMsg += "parsing an URL '%s' ('%s')" % (conf.url, getSafeExString(ex))

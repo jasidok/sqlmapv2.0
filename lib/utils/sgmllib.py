@@ -10,8 +10,6 @@
 # and CDATA (character data -- only end tags are special).  RCDATA is
 # not supported at all.
 
-from __future__ import print_function
-
 try:
     import _markupbase as markupbase
 except:

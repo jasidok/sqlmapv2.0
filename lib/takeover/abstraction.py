@@ -5,8 +5,6 @@ Copyright (c) 2006-2025 sqlmap developers (https://sqlmap.org)
 See the file 'LICENSE' for copying permission
 """
 
-from __future__ import print_function
-
 import sys
 
 from lib.core.common import Backend
@@ -29,7 +27,6 @@ from lib.takeover.udf import UDF
 from lib.takeover.web import Web
 from lib.takeover.xp_cmdshell import XP_cmdshell
 from lib.utils.safe2bin import safechardecode
-from thirdparty.six.moves import input as _input
 
 class Abstraction(Web, UDF, XP_cmdshell):
     """
@@ -141,7 +138,7 @@ class Abstraction(Web, UDF, XP_cmdshell):
             command = None
 
             try:
-                command = _input("os-shell> ")
+                command = input("os-shell> ")
                 command = getUnicode(command, encoding=sys.stdin.encoding)
             except KeyboardInterrupt:
                 print()

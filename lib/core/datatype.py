@@ -8,11 +8,81 @@ See the file 'LICENSE' for copying permission
 import copy
 import threading
 import types
+from dataclasses import dataclass, field
+from typing import (
+    List, Optional, Any, Dict, TypeVar, Generic, Protocol, Union,
+    Iterator, Mapping, MutableSet, TypedDict, runtime_checkable
+)
 
 from thirdparty.odict import OrderedDict
-from thirdparty.six.moves import collections_abc as _collections
+import collections.abc as _collections
 
-class AttribDict(dict):
+# Generic type variables
+T = TypeVar('T')
+K = TypeVar('K')
+V = TypeVar('V')
+
+
+# Protocols for duck typing
+@runtime_checkable
+class SQLMapConfigProtocol(Protocol):
+    """Protocol for SQLMap configuration objects"""
+
+    def get(self, key: str, default: Any = None) -> Any: ...
+
+    def __getitem__(self, key: str) -> Any: ...
+
+    def __setitem__(self, key: str, value: Any) -> None: ...
+
+
+@runtime_checkable
+class CacheProtocol(Protocol[K, V]):
+    """Protocol for cache-like objects"""
+
+    def __getitem__(self, key: K) -> V: ...
+
+    def __setitem__(self, key: K, value: V) -> None: ...
+
+    def __contains__(self, key: K) -> bool: ...
+
+    def get(self, key: K, default: Optional[V] = None) -> Optional[V]: ...
+
+
+# TypedDict for configuration dictionaries
+class SQLMapConfig(TypedDict, total=False):
+    """Type definition for SQLMap configuration dictionary"""
+    url: Optional[str]
+    method: Optional[str]
+    data: Optional[str]
+    cookie: Optional[str]
+    headers: Optional[str]
+    userAgent: Optional[str]
+    timeout: Optional[int]
+    retries: Optional[int]
+    randomAgent: Optional[bool]
+    threads: Optional[int]
+    level: Optional[int]
+    risk: Optional[int]
+    technique: Optional[str]
+    dbms: Optional[str]
+    os: Optional[str]
+    tamper: Optional[str]
+    batch: Optional[bool]
+    verbose: Optional[int]
+
+
+class InjectionConfig(TypedDict, total=False):
+    """Type definition for injection-specific configuration"""
+    timeSec: Optional[int]
+    unionCols: Optional[str]
+    unionChar: Optional[str]
+    unionFrom: Optional[str]
+    dnsName: Optional[str]
+    secondUrl: Optional[str]
+    secondReq: Optional[str]
+
+
+class AttribDict(dict, Generic[K, V]):
     """
     This class defines the dictionary with added capability to access members as attributes
 
@@ -22,7 +92,7 @@ class AttribDict(dict):
     1
     """
 
-    def __init__(self, indict=None, attribute=None, keycheck=True):
+    def __init__(self, indict: Optional[Dict[K, V]] = None, attribute: Optional[str] = None, keycheck: bool = True):
         if indict is None:
             indict = {}
 
@@ -36,7 +106,7 @@ class AttribDict(dict):
         # After initialisation, setting attributes
         # is the same as setting an item
 
-    def __getattr__(self, item):
+    def __getattr__(self, item: str) -> Any:
         """
         Maps values to attributes
         Only called if there *is NOT* an attribute with this name
@@ -50,7 +120,7 @@ class AttribDict(dict):
             else:
                 return None
 
-    def __delattr__(self, item):
+    def __delattr__(self, item: str) -> Any:
         """
         Deletes attributes
         """
@@ -63,7 +133,7 @@ class AttribDict(dict):
             else:
                 return None
 
-    def __setattr__(self, item, value):
+    def __setattr__(self, item: str, value: Any) -> None:
         """
         Maps attributes to values
         Only if we are initialised
@@ -80,13 +150,13 @@ class AttribDict(dict):
         else:
             self.__setitem__(item, value)
 
-    def __getstate__(self):
+    def __getstate__(self) -> Dict[str, Any]:
         return self.__dict__
 
-    def __setstate__(self, dict):
+    def __setstate__(self, dict: Dict[str, Any]) -> None:
         self.__dict__ = dict
 
-    def __deepcopy__(self, memo):
+    def __deepcopy__(self, memo: Dict[int, Any]) -> 'AttribDict[K, V]':
         retVal = self.__class__()
         memo[id(self)] = retVal
 
@@ -101,32 +171,38 @@ class AttribDict(dict):
 
         return retVal
 
-class InjectionDict(AttribDict):
+
+@dataclass(slots=True)
+class InjectionData:
+    """
+    Data class for injection detection information
+    """
+    place: Optional[str] = None
+    parameter: Optional[str] = None
+    ptype: Optional[str] = None
+    prefix: Optional[str] = None
+    suffix: Optional[str] = None
+    clause: Optional[str] = None
+    notes: List[str] = field(default_factory=list)
+    data: AttribDict[str, Any] = field(default_factory=AttribDict)
+    conf: AttribDict[str, Any] = field(default_factory=AttribDict)
+    dbms: Optional[str] = None
+    dbms_version: Optional[str] = None
+    os: Optional[str] = None
+
+
+class InjectionDict(AttribDict[str, Any]):
     def __init__(self):
         AttribDict.__init__(self)
+        injection_data = InjectionData()
 
-        self.place = None
-        self.parameter = None
-        self.ptype = None
-        self.prefix = None
-        self.suffix = None
-        self.clause = None
-        self.notes = []  # Note: https://github.com/sqlmapproject/sqlmap/issues/1888
+        # Copy all fields from dataclass to the dict
+        for field_name, field_value in injection_data.__dict__.items():
+            setattr(self, field_name, field_value)
 
-        # data is a dict with various stype, each which is a dict with
-        # all the information specific for that stype
-        self.data = AttribDict()
-
-        # conf is a dict which stores current snapshot of important
-        # options used during detection
-        self.conf = AttribDict()
-
-        self.dbms = None
-        self.dbms_version = None
-        self.os = None
 
 # Reference: https://www.kunxi.org/2014/05/lru-cache-in-python
-class LRUDict(object):
+class LRUDict(Generic[K, V], CacheProtocol[K, V]):
     """
     This class defines the LRU dictionary
 
@@ -140,26 +216,31 @@ class LRUDict(object):
     True
     """
 
-    def __init__(self, capacity):
+    __slots__ = ('capacity', 'cache', '_LRUDict__lock')
+
+    def __init__(self, capacity: int):
         self.capacity = capacity
-        self.cache = OrderedDict()
+        self.cache: OrderedDict[K, V] = OrderedDict()
         self.__lock = threading.Lock()
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.cache)
 
-    def __contains__(self, key):
+    def __contains__(self, key: K) -> bool:
         return key in self.cache
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: K) -> V:
         value = self.cache.pop(key)
         self.cache[key] = value
         return value
 
-    def get(self, key):
-        return self.__getitem__(key)
+    def get(self, key: K, default: Optional[V] = None) -> Optional[V]:
+        try:
+            return self.__getitem__(key)
+        except KeyError:
+            return default
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: K, value: V) -> None:
         with self.__lock:
             try:
                 self.cache.pop(key)
@@ -168,14 +249,15 @@ class LRUDict(object):
                     self.cache.popitem(last=False)
         self.cache[key] = value
 
-    def set(self, key, value):
+    def set(self, key: K, value: V) -> None:
         self.__setitem__(key, value)
 
-    def keys(self):
+    def keys(self) -> Iterator[K]:
         return self.cache.keys()
 
+
 # Reference: https://code.activestate.com/recipes/576694/
-class OrderedSet(_collections.MutableSet):
+class OrderedSet(Generic[T], MutableSet[T]):
     """
     This class defines the set with ordered (as added) items
 
@@ -191,58 +273,65 @@ class OrderedSet(_collections.MutableSet):
     1
     """
 
-    def __init__(self, iterable=None):
+    __slots__ = ('end', 'map')
+
+    def __init__(self, iterable: Optional[Iterator[T]] = None):
         self.end = end = []
         end += [None, end, end]         # sentinel node for doubly linked list
-        self.map = {}                   # key --> [key, prev, next]
+        self.map: Dict[T, List] = {}  # key --> [key, prev, next]
         if iterable is not None:
             self |= iterable
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.map)
 
-    def __contains__(self, key):
+    def __contains__(self, key: object) -> bool:
         return key in self.map
 
-    def add(self, value):
+    def add(self, value: T) -> None:
         if value not in self.map:
             end = self.end
             curr = end[1]
             curr[2] = end[1] = self.map[value] = [value, curr, end]
 
-    def discard(self, value):
+    def discard(self, value: T) -> None:
         if value in self.map:
             value, prev, next = self.map.pop(value)
             prev[2] = next
             next[1] = prev
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[T]:
         end = self.end
         curr = end[2]
         while curr is not end:
             yield curr[0]
             curr = curr[2]
 
-    def __reversed__(self):
+    def __reversed__(self) -> Iterator[T]:
         end = self.end
         curr = end[1]
         while curr is not end:
             yield curr[0]
             curr = curr[1]
 
-    def pop(self, last=True):
+    def pop(self, last: bool = True) -> T:
         if not self:
             raise KeyError('set is empty')
         key = self.end[1][0] if last else self.end[2][0]
         self.discard(key)
         return key
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         if not self:
             return '%s()' % (self.__class__.__name__,)
         return '%s(%r)' % (self.__class__.__name__, list(self))
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if isinstance(other, OrderedSet):
             return len(self) == len(other) and list(self) == list(other)
         return set(self) == set(other)
+
+    def remove(self, value: T) -> None:
+        if value not in self.map:
+            raise KeyError(value)
+        self.discard(value)

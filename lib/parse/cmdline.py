@@ -5,7 +5,7 @@ Copyright (c) 2006-2025 sqlmap developers (https://sqlmap.org)
 See the file 'LICENSE' for copying permission
 """
 
-from __future__ import print_function
+
 
 import os
 import re
@@ -92,7 +92,9 @@ from lib.core.shell import autoCompletion
 from lib.core.shell import clearHistory
 from lib.core.shell import loadHistory
 from lib.core.shell import saveHistory
-from thirdparty.six.moves import input as _input
+
+
+# Native input() used directly in Python 3.11+
 
 def cmdLineParser(argv=None):
     """
@@ -953,7 +955,7 @@ def cmdLineParser(argv=None):
 
                 try:
                     # Note: in Python2 command should not be converted to Unicode before passing to shlex (Reference: https://bugs.python.org/issue1170)
-                    command = _input(prompt).strip()
+                    command = input(prompt).strip()
                 except (KeyboardInterrupt, EOFError):
                     print()
                     raise SqlmapShellQuitException
@@ -1124,7 +1126,7 @@ def cmdLineParser(argv=None):
         # Protection against Windows dummy double clicking
         if IS_WIN and "--non-interactive" not in sys.argv:
             dataToStdout("\nPress Enter to continue...")
-            _input()
+            input()
         raise
 
     debugMsg = "parsing command line"
